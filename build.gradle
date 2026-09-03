@@ -1,0 +1,161 @@
+/*
+ * This software is in the public domain under CC0 1.0 Universal plus a
+ * Grant of Patent License.
+ *
+ * To the extent possible under law, the author(s) have dedicated all
+ * copyright and related and neighboring rights to this software to the
+ * public domain worldwide. This software is distributed without any
+ * warranty.
+ *
+ * You should have received a copy of the CC0 Public Domain Dedication
+ * along with this software (see the LICENSE.md file). If not, see
+ * <http://creativecommons.org/publicdomain/zero/1.0/>.
+ */
+plugins {
+    id "org.gradlewebtools.minify" version "2.1.1"
+}
+
+import java.nio.charset.StandardCharsets
+
+def staticPath = "screen/qapps2static"
+def libsPath = staticPath + "/libs"
+def downloadBase = "http://cdnjs.cloudflare.com/ajax/libs/"
+def fileMap = [
+    // Stay on 3.7.1 (last 3.x). jQuery 4.0 removes deprecated APIs and changes
+    // focus event order; qapps2 still uses $.ajax / $.extend / $.isEmptyObject.
+    "jquery/3.7.1/jquery.min.js":"",
+
+    "moment.js/2.30.1/moment-with-locales.min.js":"",
+
+    // FA 6.7.2 LTS + v4 shims so existing Moqui XML `fa fa-*` still works,
+    // while new screens can use fas/far/fab or fa-solid/fa-regular/fa-brands.
+    "font-awesome/6.7.2/css/all.min.css":"",
+    "font-awesome/6.7.2/css/v4-shims.min.css":"",
+    "font-awesome/6.7.2/css/v4-font-face.min.css":"",
+    "font-awesome/6.7.2/webfonts/fa-solid-900.woff2":"",
+    "font-awesome/6.7.2/webfonts/fa-solid-900.ttf":"",
+    "font-awesome/6.7.2/webfonts/fa-regular-400.woff2":"",
+    "font-awesome/6.7.2/webfonts/fa-regular-400.ttf":"",
+    "font-awesome/6.7.2/webfonts/fa-brands-400.woff2":"",
+    "font-awesome/6.7.2/webfonts/fa-brands-400.ttf":"",
+    "font-awesome/6.7.2/webfonts/fa-v4compatibility.woff2":"",
+    "font-awesome/6.7.2/webfonts/fa-v4compatibility.ttf":""
+]
+
+def jsdelivrBase = "https://cdn.jsdelivr.net/npm/"
+def jsdelivrMap = [
+    "vue@3.5.21/dist/vue.global.js":"vue3/vue.global.js",
+    "vue@3.5.21/dist/vue.global.prod.js":"vue3/vue.global.prod.js",
+    "quasar@2.27.0/dist/quasar.umd.prod.js":"quasar2/quasar.umd.prod.js",
+    "quasar@2.27.0/dist/quasar.prod.css":"quasar2/quasar.prod.css",
+    "vue3-sfc-loader@0.9.5/dist/vue3-sfc-loader.js":"vue3-sfc-loader/vue3-sfc-loader.js"
+]
+
+String getTargetPath(String sourcePath, String targetPath) {
+    if (!targetPath) {
+        String[] sourceSplit = sourcePath.split("/")
+        targetPath = sourceSplit[0] + '/' + sourceSplit[2..sourceSplit.length-1].join('/')
+    }
+    return targetPath
+}
+void stripSourceMappingUrl(File jsFile) {
+    if (!jsFile.exists() || !jsFile.name.toLowerCase().endsWith('.js')) return
+    String text = jsFile.getText('UTF-8')
+    String stripped = text.replaceAll(/\/\/[#@]\s*sourceMappingURL=\S+/, '')
+            .replaceAll(/\/\*[#@]\s*sourceMappingURL=\S+\s*\*\//, '')
+    if (stripped != text) {
+        jsFile.write(stripped, 'UTF-8')
+        logger.lifecycle("Stripped sourceMappingURL from ${jsFile.name}")
+    }
+}
+task downloadFiles { doLast {
+    for (Map.Entry fileEntry in fileMap.entrySet()) {
+        String sourcePath = fileEntry.key
+        String targetPath = getTargetPath(sourcePath, (String) fileEntry.value)
+
+        File targetFile = file(libsPath + '/' + targetPath)
+        if (!targetFile.exists()) {
+            String sourceUrl = downloadBase + sourcePath
+            logger.lifecycle("Downloading ${sourceUrl} to ${targetFile.absolutePath}")
+            targetFile.getParentFile().mkdirs()
+            ant.get(src: sourceUrl, dest: targetFile)
+        }
+        stripSourceMappingUrl(targetFile)
+    }
+
+    for (Map.Entry jsdEntry in jsdelivrMap.entrySet()) {
+        String jsdPath = jsdEntry.key
+        String targetPath = (String) jsdEntry.value
+
+        File targetFile = file(libsPath + '/' + targetPath)
+        if (!targetFile.exists()) {
+            String sourceUrl = jsdelivrBase + jsdPath
+            logger.lifecycle("Downloading ${sourceUrl} to ${targetFile.absolutePath}")
+            targetFile.getParentFile().mkdirs()
+            ant.get(src: sourceUrl, dest: targetFile)
+        }
+        stripSourceMappingUrl(targetFile)
+    }
+} }
+
+def baseJs = []
+baseJs.add(libsPath + '/jquery/jquery.min.js')
+baseJs.add(libsPath + '/moment.js/moment-with-locales.min.js')
+baseJs.add(staticPath + '/js/MoquiLib.min.js')
+
+def qvt2Js = []
+qvt2Js.add(libsPath + '/vue3/vue.global.prod.js')
+qvt2Js.add(libsPath + '/vue3-sfc-loader/vue3-sfc-loader.js')
+qvt2Js.add(libsPath + '/quasar2/quasar.umd.prod.js')
+qvt2Js.add(staticPath + '/js/WebrootVue.qvt2.min.js')
+
+task minifyJsDir(type: org.gradlewebtools.minify.JsMinifyTask) {
+    // see: https://github.com/gradle-webtools/gradle-minify-plugin
+    // NOTE: JsMinifyTask always recursively minify in sub-directories
+    srcDir = file(staticPath + "/js")
+    dstDir = file(staticPath + "/js")
+    options.ignoreMinFiles = true
+    options.emitUseStrict = false
+    options.strictModeInput = false
+    options.compilationLevel = com.google.javascript.jscomp.CompilationLevel.SIMPLE_OPTIMIZATIONS
+    options.env = com.google.javascript.jscomp.CompilerOptions.Environment.BROWSER
+    options.warningLevel = com.google.javascript.jscomp.WarningLevel.QUIET
+    options.charset = StandardCharsets.UTF_8
+}
+task combineBaseJs {
+    dependsOn downloadFiles
+    dependsOn minifyJsDir
+    doLast {
+        def destFile = file("${staticPath}/js/CombinedBase.min.js")
+        destFile.write("")
+        baseJs.each({
+            destFile.append(file(it).getText("UTF-8"), "UTF-8")
+            destFile.append("\n")
+        })
+    }
+}
+task combineQvt2Js {
+    dependsOn downloadFiles
+    dependsOn minifyJsDir
+    doLast {
+        def destFile = file("${staticPath}/js/CombinedQvt2.min.js")
+        destFile.write("")
+        qvt2Js.each({
+            destFile.append(file(it).getText("UTF-8"), "UTF-8")
+            destFile.append("\n")
+        })
+    }
+}
+
+task build {
+    dependsOn downloadFiles
+    dependsOn minifyJsDir
+    dependsOn combineBaseJs
+    dependsOn combineQvt2Js
+}
+task clean { doLast {
+    delete fileTree(dir: "${staticPath}/js", include: '*.min.js')
+}}
+task cleanAll { doLast {
+    delete file(libsPath)
+} }

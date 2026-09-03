@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
+        require-authentication="false" screen-theme-type-enum-id="STT_INTERNAL_QUASAR2"
+        default-menu-title="Applications" allow-extra-path="true">
+
+    <pre-actions><script><![CDATA[
+        if (!ec.user.userId) { ec.web.saveScreenLastInfo(null, null); sri.sendRedirectAndStopRender('/Login') }
+
+        String instancePurpose = System.getProperty("instance_purpose")
+        if (!instancePurpose || instancePurpose == 'production') {
+            html_scripts.add('/qapps2static/js/CombinedBase.min.js')
+            footer_scripts.add('/qapps2static/js/CombinedQvt2.min.js')
+        } else {
+            html_scripts.add('/qapps2static/libs/moment.js/moment-with-locales.min.js')
+            html_scripts.add('/qapps2static/libs/jquery/jquery.min.js')
+            html_scripts.add('/qapps2static/js/MoquiLib.js')
+            footer_scripts.add('/qapps2static/libs/vue3/vue.global.js')
+            footer_scripts.add('/qapps2static/libs/vue3-sfc-loader/vue3-sfc-loader.js')
+            footer_scripts.add('/qapps2static/libs/quasar2/quasar.umd.prod.js')
+            footer_scripts.add('/qapps2static/js/WebrootVue.qvt2.js')
+        }
+    ]]></script></pre-actions>
+
+    <widgets>
+        <render-mode>
+            <text type="html" location="component://qapps2/screen/includes/WebrootVue.qvt2.ftl"/>
+        </render-mode>
+    </widgets>
+</screen>
