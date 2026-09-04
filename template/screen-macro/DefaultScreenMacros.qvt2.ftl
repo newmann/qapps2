@@ -275,7 +275,7 @@ ${sri.renderIncludeScreen(.node["@location"], .node["@share-scope"]!)}
             <${linkElement} href="${urlText}"<#if linkFormId?has_content> id="${linkFormId}"</#if><#rt>
                 <#t><#if linkNode["@target-window"]?has_content> target="${linkNode["@target-window"]}"</#if>
                 <#t><#if linkNode["@dynamic-load-id"]?has_content> load-id="${linkNode["@dynamic-load-id"]}"</#if>
-                <#t><#if confirmationMessage?has_content><#if linkElement == "m-link"> :confirmation="'${confirmationMessage?js_string}'"<#else> onclick="return confirm('${confirmationMessage?js_string}')"</#if></#if>
+                <#t><#if confirmationMessage?has_content><#if linkElement == "m-link"> :confirmation="'${confirmationMessage?js_string}'"<#else> @click.prevent="moqui.confirmHref($event, '${confirmationMessage?js_string}')"</#if></#if>
                 <#-- TODO non q-btn approach might simulate styles like old stuff, initial attempt failed though: <#if linkNode["@link-type"]! != "anchor">btn btn-${linkNode["@btn-type"]!"primary"} btn-sm</#if> -->
                 <#if linkNode["@link-type"]! != "anchor">
                     <#t>>
@@ -294,7 +294,7 @@ ${sri.renderIncludeScreen(.node["@location"], .node["@share-scope"]!)}
             <#if linkFormId?has_content>
             <#rt><q-btn dense outline no-caps type="submit" form="${linkFormId}" id="${linkFormId}_button" color="<@getQuasarColor linkNode["@btn-type"]!"primary"/>"
                     <#t> class="<#if linkNode["@style"]?has_content>${ec.getResource().expandNoL10n(linkNode["@style"], "")}</#if>"
-                    <#t><#if confirmationMessage?has_content> onclick="return confirm('${confirmationMessage?js_string}')"</#if>>
+                    <#t><#if confirmationMessage?has_content> @click.prevent="moqui.confirmSubmit($event, '${confirmationMessage?js_string}')"</#if>>
                     <#t><#if linkNode["@tooltip"]?has_content><q-tooltip><span v-pre>${ec.getResource().expand(linkNode["@tooltip"], "")}</span></q-tooltip></#if>
                 <#t><#if iconClass?has_content><i class="${iconClass} q-icon<#if linkText?? && linkText?trim?has_content> on-left</#if>"></i> </#if>
                 <#if linkNode["image"]?has_content>
@@ -324,14 +324,14 @@ ${sri.renderIncludeScreen(.node["@location"], .node["@share-scope"]!)}
             <#if !linkFormId?has_content>
                 <#assign confirmationMessage = ec.getResource().expand(linkNode["@confirmation"]!, "")/>
                 <#if linkNode["image"]?has_content><#assign imageNode = linkNode["image"][0]/>
-                    <input type="image" src="${sri.makeUrlByType(imageNode["@url"],imageNode["@url-type"]!"content",null,"true")}"<#if imageNode["@alt"]?has_content> alt="${imageNode["@alt"]}"</#if><#if confirmationMessage?has_content> onclick="return confirm('${confirmationMessage?js_string}')"</#if>>
+                    <input type="image" src="${sri.makeUrlByType(imageNode["@url"],imageNode["@url-type"]!"content",null,"true")}"<#if imageNode["@alt"]?has_content> alt="${imageNode["@alt"]}"</#if><#if confirmationMessage?has_content> @click.prevent="moqui.confirmSubmit($event, '${confirmationMessage?js_string}')"</#if>>
                 <#else>
                     <#assign iconClass = linkNode["@icon"]!>
                     <#if !iconClass?has_content && linkNode["@text"]?has_content><#assign iconClass = sri.getThemeIconClass(linkNode["@text"])!></#if>
                     <#assign badgeMessage = ec.getResource().expand(linkNode["@badge"]!, "")/>
                     <#rt><q-btn dense no-caps type="submit" <#if linkNode["@link-type"]! == "hidden-form-link">flat<#else>outline</#if>
                             <#t> color="<@getQuasarColor linkNode["@btn-type"]!"primary"/>" class="m-link<#if .node["@style"]?has_content> ${ec.getResource().expandNoL10n(.node["@style"], "")}</#if>"
-                            <#t><#if confirmationMessage?has_content> onclick="return confirm('${confirmationMessage?js_string}')"</#if>>
+                            <#t><#if confirmationMessage?has_content> @click.prevent="moqui.confirmSubmit($event, '${confirmationMessage?js_string}')"</#if>>
                         <#t><#if linkNode["@tooltip"]?has_content><q-tooltip><span v-pre>${ec.getResource().expand(linkNode["@tooltip"], "")}</span></q-tooltip></#if>
                         <#t><#if iconClass?has_content><i class="${iconClass} q-icon
                         <#t><#if linkText?? && linkText?trim?has_content> on-left</#if>"></i> </#if>
@@ -851,7 +851,7 @@ ${sri.renderIncludeScreen(.node["@location"], .node["@share-scope"]!)}
                                              :options="[{value:'xlsx',label:'XLSX'},{value:'csv',label:'CSV'},{value:'xsl-fo',label:'PDF'}]"></m-drop-down>
                                 <m-drop-down v-model="formProps.fields.cronSelected" name="cronSelected" label="${ec.getL10n().localize("Schedule")}" id="${formId}_SCHED_cronSelected"
                                              :options="[{value:'0 0 6 ? * MON-FRI',label:'Monday-Friday'},{value:'0 0 6 ? * *',label:'Every Day'},{value:'0 0 6 ? * MON',label:'Monday Only'},{value:'0 0 6 1 * ?',label:'Monthly'}]"></m-drop-down>
-                                <q-btn dense outline no-caps type="submit" name="ScheduleFind" onclick="return confirm('${ec.getL10n().localize("Setup a schedule to send this saved find to you by email?")}');" label="${ec.getL10n().localize("Schedule")}"></q-btn>
+                                <q-btn dense outline no-caps type="submit" name="ScheduleFind" @click.prevent="moqui.confirmSubmit($event, '${ec.getL10n().localize("Setup a schedule to send this saved find to you by email?")?js_string}')" label="${ec.getL10n().localize("Schedule")}"></q-btn>
                             </m-form>
                         </#if>
                     </#if>
@@ -889,7 +889,7 @@ ${sri.renderIncludeScreen(.node["@location"], .node["@share-scope"]!)}
                                             <q-tooltip>Update saved find using description and current find parameters</q-tooltip>
                                         </q-btn></div>
                                     <#if userFindInfo.isByUserId == "true">
-                                        <div class="q-my-auto big-row-item"><q-btn dense flat no-caps type="submit" name="DeleteFind" color="negative" icon="delete_forever" onclick="return confirm('${ec.getL10n().localize("Delete")} ${formListFind.description?js_string}?');"></q-btn></div>
+                                        <div class="q-my-auto big-row-item"><q-btn dense flat no-caps type="submit" name="DeleteFind" color="negative" icon="delete_forever" @click.prevent="moqui.confirmSubmit($event, '${ec.getL10n().localize("Delete")} ${formListFind.description?js_string}?')"></q-btn></div>
                                     </#if>
                                     <div class="q-my-auto big-row-item"><q-btn dense outline no-caps to="${doFindUrl.pathWithParams}" label="${ec.getL10n().localize("Do Find")}"></q-btn></div>
                                     <#if userDefaultFormListFindId == formListFind.formListFindId>
@@ -907,7 +907,7 @@ ${sri.renderIncludeScreen(.node["@location"], .node["@share-scope"]!)}
                                         :fields-initial="{formListFindId:'${formListFind.formListFindId}', formLocation:'${Static["org.moqui.util.WebUtilities"].encodeHtmlJsSafe(formListInfo.getSavedFindFullLocation())}'}">
                                     <#if userFindInfo.isByUserId == "true">
                                         <div class="q-my-auto big-row-item"><q-btn dense flat no-caps type="submit" name="DeleteFind" color="negative" icon="delete_forever"
-                                                onclick="return confirm('${ec.getL10n().localize("Delete")} ${formListFind.description?js_string}?');"></q-btn></div>
+                                                @click.prevent="moqui.confirmSubmit($event, '${ec.getL10n().localize("Delete")} ${formListFind.description?js_string}?')"></q-btn></div>
                                     </#if>
                                     <#if userDefaultFormListFindId == formListFind.formListFindId>
                                         <div class="q-my-auto big-row-item"><q-btn dense outline no-caps type="submit" name="ClearDefault" color="info" label="${ec.getL10n().localize("Clear Default")}"></q-btn></div>
@@ -1620,6 +1620,7 @@ ${sri.renderIncludeScreen(.node["@location"], .node["@share-scope"]!)}
     </#if>
     <#t><#assign titleValue><#if fieldSubNode["@title"]?has_content>${ec.getResource().expand(fieldSubNode["@title"], "")}<#else><#list fieldSubNode?parent["@name"]?split("(?=[A-Z])", "r") as nameWord>${nameWord?cap_first?replace("Id", "ID")}<#if nameWord_has_next> </#if></#list></#if></#assign>${ec.getL10n().localize(titleValue)}
 </#macro>
+<#macro fieldRequiredClass subFieldNode><#local vc = formInstance.getFieldValidationClasses(subFieldNode)!><#if vc?contains("required")> required</#if></#macro>
 <#macro fieldIdByName fieldName><#if fieldFormId?has_content>${fieldFormId}<#else>${ec.getResource().expandNoL10n(formNode["@name"], "")}</#if>_${fieldName}<#if listEntryIndex?has_content>_${listEntryIndex}</#if><#if sectionEntryIndex?has_content>_${sectionEntryIndex}</#if></#macro>
 
 <#macro field><#-- shouldn't be called directly, but just in case --><#recurse/></#macro>
@@ -1638,7 +1639,7 @@ ${sri.renderIncludeScreen(.node["@location"], .node["@share-scope"]!)}
     <#assign useWrapper = (.node["@no-wrapper"]!"false") != "true">
     <#if useWrapper>
     <q-field dense outlined<#if fieldLabel?has_content> stack-label label="${fieldLabel}"</#if>
-        <#t><#if containerStyle?has_content> class="${containerStyle}"</#if><#if formDisabled!false> disable</#if>
+        <#t> class="${containerStyle}<@fieldRequiredClass .node?parent/>"<#if formDisabled!false> disable</#if>
         <#t> :bg-color="formProps.fieldChanged('${curName}')?($q.dark.isActive?'blue-10':'blue-1'):''">
         <#if .node?parent["@tooltip"]?has_content><q-tooltip><span v-pre>${ec.getResource().expand(.node?parent["@tooltip"], "")}</span></q-tooltip></#if>
         <template v-slot:control>
@@ -1745,7 +1746,7 @@ a => A, d => D, y => Y
         <#t> :bg-color="formProps.fieldChanged('${curName}')?($q.dark.isActive?'blue-10':'blue-1'):''"
         <#t><#if .node?parent["@tooltip"]?has_content> tooltip="${ec.getResource().expand(.node?parent["@tooltip"], "")}"</#if>
         <#t><#if ownerForm?has_content> form="${ownerForm}"</#if><#if javaFormat?has_content> format="<@getMomentDateFormat javaFormat/>"</#if>
-        <#t><#if validationClasses?contains("required")> required="required"</#if><#if .node.@rules?has_content> :rules="[${.node.@rules}]"</#if>
+        <#t> class="<@fieldRequiredClass dtSubFieldNode/>"<#if .node.@rules?has_content> :rules="[${.node.@rules}]"</#if>
         <#t> auto-year="${.node["@auto-year"]!"true"}" :minuteStep="${.node["@minute-stepping"]!"5"}"></m-date-time>
 </#macro>
 
@@ -1890,7 +1891,7 @@ a => A, d => D, y => Y
     </#if>
     <#assign fieldLabel><@fieldTitle ddSubFieldNode/></#assign>
     <m-drop-down name="${name}" id="${tlId}"<#if fieldLabel?has_content> label="${fieldLabel}"</#if><#if formDisabled!> disable</#if><#rt>
-            <#t> class="<#if isDynamicOptions>dynamic-options</#if><#if .node["@style"]?has_content> ${ec.getResource().expandNoL10n(.node["@style"], "")}</#if><#if validationClasses?has_content> ${validationClasses}</#if>"<#rt>
+            <#t> class="<#if isDynamicOptions>dynamic-options</#if><#if .node["@style"]?has_content> ${ec.getResource().expandNoL10n(.node["@style"], "")}</#if><#if validationClasses?has_content> ${validationClasses}</#if><@fieldRequiredClass ddSubFieldNode/>"<#rt>
             <#t><#if fieldsJsName?has_content> v-model="${fieldsJsName}.${name}" :fields="${fieldsJsName}"<#else><#if allowMultiple> :model-value="[<#list currentValueList as curVal><#if curVal?has_content>'${curVal}',</#if></#list>]"<#else> model-value="${currentValue!}"</#if></#if>
             <#t><#if allowMultiple> :multiple="true"</#if><#if allowEmpty> :allow-empty="true"</#if><#if .node["@combo-box"]! == "true"> :combo="true"</#if>
             <#t><#if .node["@required-manual-select"]! == "true"> :required-manual-select="true"</#if>
@@ -1923,7 +1924,7 @@ a => A, d => D, y => Y
     <#assign curFieldName><@fieldName .node/></#assign>
     <#assign fieldLabel><@fieldTitle .node?parent/></#assign>
     <#assign acceptText = ec.getResource().expand(.node.@accept, "")>
-    <q-file dense outlined<#if fieldLabel?has_content> stack-label label="${fieldLabel}"</#if><#if fieldsJsName?has_content> v-model="${fieldsJsName}.${curFieldName}"</#if><#if formDisabled!> disable</#if>
+    <q-file dense outlined<#if fieldLabel?has_content> stack-label label="${fieldLabel}"</#if> class="<@fieldRequiredClass .node?parent/>"<#if fieldsJsName?has_content> v-model="${fieldsJsName}.${curFieldName}"</#if><#if formDisabled!> disable</#if>
             <#-- TODO-FC <#t> :bg-color="formProps.fieldChanged('${name}')?($q.dark.isActive?'blue-10':'blue-1'):''" -->
             <#t> name="<@fieldName .node/>" size="${.node.@size!"30"}"<#if .node.@multiple! == "true"> multiple</#if><#if .node.@accept?has_content> accept="${acceptText}"</#if><#if .node.@maxlength?has_content> maxlength="${.node.@maxlength}"</#if><#if ownerForm?has_content> form="${ownerForm}"</#if>>
         <#if .node?parent["@tooltip"]?has_content><q-tooltip><span v-pre>${ec.getResource().expand(.node?parent["@tooltip"], "")}</span></q-tooltip></#if>
@@ -1946,9 +1947,9 @@ a => A, d => D, y => Y
     <#assign fieldLabel><@fieldTitle .node?parent/></#assign>
     <q-input dense outlined<#if fieldLabel?has_content> stack-label label="${fieldLabel}"</#if> type="password" name="${curFieldName}" id="<@fieldId .node/>"<#if formDisabled!> disable</#if><#rt>
             <#t><#if fieldsJsName?has_content> v-model="${fieldsJsName}.${curFieldName}"</#if>
-            <#t> class="form-control<#if validationClasses?has_content> ${validationClasses}</#if>" size="${.node.@size!"25"}"
+            <#t> class="form-control<#if validationClasses?has_content> ${validationClasses}</#if><@fieldRequiredClass .node?parent/>" size="${.node.@size!"25"}"
             <#t><#if .node.@maxlength?has_content> maxlength="${.node.@maxlength}"</#if>
-            <#t><#if validationClasses?contains("required")> required</#if><#if ownerForm?has_content> form="${ownerForm}"</#if>>
+            <#t><#if ownerForm?has_content> form="${ownerForm}"</#if>>
         <#if .node?parent["@tooltip"]?has_content><q-tooltip><span v-pre>${ec.getResource().expand(.node?parent["@tooltip"], "")}</span></q-tooltip></#if>
     </q-input>
 </#macro>
@@ -1960,7 +1961,7 @@ a => A, d => D, y => Y
     <#assign tlId><@fieldId .node/></#assign>
     <#assign curName><@fieldName .node/></#assign>
     <#assign fieldLabel><@fieldTitle .node?parent/></#assign>
-    <q-field dense outlined<#if fieldLabel?has_content> stack-label label="${fieldLabel}"</#if><#if formDisabled!> disable</#if>
+    <q-field dense outlined<#if fieldLabel?has_content> stack-label label="${fieldLabel}"</#if> class="<@fieldRequiredClass .node?parent/>"<#if formDisabled!> disable</#if>
         <#t> :bg-color="formProps.fieldChanged('${curName}')?($q.dark.isActive?'blue-10':'blue-1'):''">
         <#if .node?parent["@tooltip"]?has_content><q-tooltip><span v-pre>${ec.getResource().expand(.node?parent["@tooltip"], "")}</span></q-tooltip></#if>
         <template v-slot:control>
@@ -2002,7 +2003,7 @@ a => A, d => D, y => Y
     <#if !iconClass?has_content><#assign iconClass = sri.getThemeIconClass(buttonText)!></#if>
     <q-btn dense :outline="!formProps.hasFieldsChanged" no-caps type="submit" name="<@fieldName .node/>" value="<@fieldName .node/>" id="<@fieldId .node/>"<#rt>
             <#t> color="<@getQuasarColor .node["@type"]!"primary"/>"<#if formDisabled!> disabled</#if>
-            <#t><#if confirmationMessage?has_content> onclick="return confirm('${confirmationMessage?js_string}');"</#if>
+            <#t><#if confirmationMessage?has_content> @click.prevent="moqui.confirmSubmit($event, '${confirmationMessage?js_string}')"</#if>
             <#t><#if ownerForm?has_content> form="${ownerForm}"</#if><#if !.node["image"]?has_content> label="${buttonText}"</#if>>
         <#if iconClass?has_content><i class="${iconClass}"></i></#if>
         <#if .node?parent["@tooltip"]?has_content><q-tooltip><span v-pre>${ec.getResource().expand(.node?parent["@tooltip"], "")}</span></q-tooltip></#if>
@@ -2030,7 +2031,7 @@ a => A, d => D, y => Y
         <m-simple-mde<#if fieldsJsName?has_content> v-model="${fieldsJsName}.${name}"</#if>
                 :config="{ indentWithTabs:false, autoDownloadFontAwesome:false, autofocus:true, spellChecker:false }"></m-simple-mde>
     <#else>
-        <q-input type="textarea" dense outlined<#if fieldLabel?has_content> stack-label label="${fieldLabel}"</#if> name="${name}" for="<@fieldId .node/>"
+        <q-input type="textarea" dense outlined<#if fieldLabel?has_content> stack-label label="${fieldLabel}"</#if> class="<@fieldRequiredClass .node?parent/>" name="${name}" for="<@fieldId .node/>"
                 <#t><#if fieldsJsName?has_content> v-model="${fieldsJsName}.${name}"</#if><#if formDisabled!> disable</#if>
                 <#t><#if .node["@cols"]?has_content> cols="${.node["@cols"]}"<#else> style="width:100%;"</#if>
                 <#t> rows="${.node["@rows"]!"3"}"<#if .node["@read-only"]! == "true"> readonly="readonly"</#if>
@@ -2096,8 +2097,8 @@ a => A, d => D, y => Y
                 <#t><#if .node.@size?has_content> size="${.node.@size}"<#else> style="width:100%;"</#if><#if .node.@maxlength?has_content> maxlength="${.node.@maxlength}"</#if>
                 <#t><#if formDisabled! || ec.getResource().condition(.node.@disabled!"false", "")> disable</#if>
                 <#t> :bg-color="formProps.fieldChanged('${name}')?($q.dark.isActive?'blue-10':'blue-1'):''"
-                <#t> class="<#if validationClasses?has_content>${validationClasses}</#if><#if tlAlign == "center"> text-center<#elseif tlAlign == "right"> text-right</#if>"
-                <#t><#if validationClasses?contains("required")> required</#if><#if regexpInfo?has_content> pattern="${regexpInfo.regexp}" data-msg-pattern="${regexpInfo.message!"Invalid format"}"</#if>
+                <#t> class="<#if validationClasses?has_content>${validationClasses}</#if><@fieldRequiredClass tlSubFieldNode/><#if tlAlign == "center"> text-center<#elseif tlAlign == "right"> text-right</#if>"
+                <#t><#if regexpInfo?has_content> pattern="${regexpInfo.regexp}" data-msg-pattern="${regexpInfo.message!"Invalid format"}"</#if>
                 <#t><#if expandedMask?has_content> mask="${expandedMask}" fill-mask="_"<#if validationClasses?contains("number")> :reverse-fill-mask="true"</#if></#if>
                 <#t><#if .node["@default-transition"]?has_content>
                     <#t> default-url="${defUrlInfo.path}" :default-load-init="true"<#if .node["@depends-optional"]! == "true"> :depends-optional="true"</#if>

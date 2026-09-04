@@ -115,7 +115,7 @@ qapps2 Vue 3 + Quasar 2 shell. Independent copy of WebrootVue.qvt.ftl.
                         <q-separator vertical></q-separator>
                         <q-card-actions vertical class="justify-around q-px-md">
                             <q-btn flat dense icon="settings_power" color="negative" type="a" href="${sri.buildUrl("/Login/logout").url}"
-                                   onclick="return confirm('${ec.l10n.localize("Logout")} ${(ec.user.userAccount.userFullName)!''}?')">
+                                   @click.prevent="moqui.confirmHref($event, '${ec.l10n.localize("Logout")} ${(ec.user.userAccount.userFullName)!''}?')">
                                 <q-tooltip>${ec.l10n.localize("Logout")} ${(ec.user.userAccount.userFullName)!''}</q-tooltip></q-btn>
                             <q-btn flat dense @click.prevent="switchDarkLight()" icon="invert_colors">
                                 <q-tooltip>${ec.l10n.localize("Switch Dark/Light")}</q-tooltip></q-btn>
@@ -178,4 +178,10 @@ qapps2 Vue 3 + Quasar 2 shell. Independent copy of WebrootVue.qvt.ftl.
         notify: { progress:true, closeBtn:'X', position:'top-right' },
         loadingBar: { color:'primary' }
     }
+    if (!window.moqui) window.moqui = {};
+    window.moqui.confirmLabels = {
+        title: '${ec.l10n.localize("Confirm")?js_string}',
+        ok: '${ec.l10n.localize("OK")?js_string}',
+        cancel: '${ec.l10n.localize("Cancel")?js_string}'
+    };
 </script>

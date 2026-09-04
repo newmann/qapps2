@@ -202,6 +202,15 @@ ul.float-plain.condensed li { margin: 0 4px 0 0; padding: 4px; }
 .diagram-sequence-item i.right:before { content:"\f054" }
 .diagram-sequence-actor { font-size: larger; font-weight: bold; margin-bottom: 14px; border-top: rgb(127, 127, 127) solid 1px; border-bottom: rgb(127, 127, 127) solid 1px; }
 
+/* Required fields: theme-owned marker (Quasar 2.27 QField has no asterisk API) */
+.q-field.required .q-field__label {
+    overflow: visible;
+}
+.q-field.required .q-field__label:after {
+    content: " *";
+    color: var(--q-negative);
+}
+
 /* misc library styles */
 /* simplemde */
 .editor-toolbar.fullscreen { z-index:100!important; top:50px!important; }

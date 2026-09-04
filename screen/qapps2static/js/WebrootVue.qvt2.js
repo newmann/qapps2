@@ -315,22 +315,91 @@ moqui.loadComponent = function(urlInfo, callback, divId) {
 moqui.NotFound = qapps2RawComp({ template: '<div id="current-page-root"><h4>Screen not found at {{this.$root.currentPath}}</h4></div>' });
 moqui.EmptyComponent = qapps2RawComp({ template: '<div id="current-page-root"><div class="spinner"><div>&nbsp;</div></div></div>' });
 
+if (!moqui.confirmLabels) moqui.confirmLabels = { title: 'Confirm', ok: 'OK', cancel: 'Cancel' };
+moqui.confirmThen = function(message, onOk) {
+    var labels = moqui.confirmLabels || {};
+    var q = moqui.webrootVue && moqui.webrootVue.$q;
+    if (!q || !q.dialog) {
+        if (window.confirm(message) && onOk) onOk();
+        return;
+    }
+    q.dialog({
+        title: labels.title || 'Confirm',
+        message: message,
+        persistent: true,
+        ok: { label: labels.ok || 'OK', color: 'primary', unelevated: true },
+        cancel: { label: labels.cancel || 'Cancel', flat: true }
+    }).onOk(function() { if (onOk) onOk(); });
+};
+moqui.confirmEventEl = function(event) {
+    event = event || window.event;
+    if (!event) return null;
+    return event.currentTarget || event.target || null;
+};
+moqui.confirmHref = function(event, message) {
+    if (event) {
+        if (event.preventDefault) event.preventDefault();
+        if (event.stopPropagation) event.stopPropagation();
+    }
+    var el = moqui.confirmEventEl(event);
+    moqui.confirmThen(message, function() {
+        var href = el && ((el.getAttribute && el.getAttribute('href')) || el.href);
+        var target = el && el.getAttribute && el.getAttribute('target');
+        if (!href) return;
+        if (target) window.open(href, target);
+        else window.location.href = href;
+    });
+    return false;
+};
+moqui.confirmSubmit = function(event, message) {
+    event = event || window.event;
+    if (event) {
+        if (event.preventDefault) event.preventDefault();
+        if (event.stopPropagation) event.stopPropagation();
+    }
+    var el = moqui.confirmEventEl(event);
+    var target = event && event.target;
+    moqui.confirmThen(message, function() {
+        var form = null;
+        var nodes = [el, target];
+        for (var i = 0; i < nodes.length && !form; i++) {
+            var node = nodes[i];
+            if (!node) continue;
+            var formId = node.getAttribute && node.getAttribute('form');
+            if (formId) form = document.getElementById(formId);
+            if (!form) form = node.form;
+            if (!form && node.closest) form = node.closest('form');
+        }
+        if (form) {
+            if (form.requestSubmit) form.requestSubmit();
+            else if (typeof form.submit === 'function') form.submit();
+        }
+    });
+    return false;
+};
+
 /* ========== inline components ========== */
 qapps2Register('m-link', {
     props: { href:{type:String,required:true}, loadId:String, confirmation:String },
     template: '<a :href="linkHref" @click.prevent="go" class="q-link"><slot></slot></a>',
     methods: { go: function(event) {
         if (event.button !== 0) { return; }
-        if (this.confirmation && this.confirmation.length) { if (!window.confirm(this.confirmation)) { return; } }
-        if (this.loadId && this.loadId.length > 0) {
-            this.$root.loadContainer(this.loadId, this.href);
-        } else {
-            if (event.ctrlKey || event.metaKey) {
-                window.open(this.linkHref, "_blank");
+        var vm = this;
+        var openBlank = event.ctrlKey || event.metaKey;
+        var proceed = function() {
+            if (vm.loadId && vm.loadId.length > 0) {
+                vm.$root.loadContainer(vm.loadId, vm.href);
+            } else if (openBlank) {
+                window.open(vm.linkHref, "_blank");
             } else {
-                this.$root.setUrl(this.linkHref);
+                vm.$root.setUrl(vm.linkHref);
             }
+        };
+        if (this.confirmation && this.confirmation.length) {
+            moqui.confirmThen(this.confirmation, proceed);
+            return;
         }
+        proceed();
     }},
     computed: { linkHref: function () { return this.$root.getLinkPath(this.href); } }
 });
