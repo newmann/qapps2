@@ -47,8 +47,15 @@ def jsdelivrMap = [
     "vue@3.5.21/dist/vue.global.js":"vue3/vue.global.js",
     "vue@3.5.21/dist/vue.global.prod.js":"vue3/vue.global.prod.js",
     "quasar@2.27.0/dist/quasar.umd.prod.js":"quasar2/quasar.umd.prod.js",
+    "quasar@2.27.0/dist/lang/zh-CN.umd.prod.js":"quasar2/lang/zh-CN.umd.prod.js",
     "quasar@2.27.0/dist/quasar.prod.css":"quasar2/quasar.prod.css",
-    "vue3-sfc-loader@0.9.5/dist/vue3-sfc-loader.js":"vue3-sfc-loader/vue3-sfc-loader.js"
+    "vue3-sfc-loader@0.9.5/dist/vue3-sfc-loader.js":"vue3-sfc-loader/vue3-sfc-loader.js",
+    "material-icons@1.13.14/iconfont/material-icons.css":"material-icons/material-icons.css",
+    "material-icons@1.13.14/iconfont/material-icons.woff2":"material-icons/material-icons.woff2",
+    "material-icons@1.13.14/iconfont/material-icons.woff":"material-icons/material-icons.woff",
+    "@fontsource/roboto@5.2.5/files/roboto-latin-400-normal.woff2":"roboto/roboto-latin-400-normal.woff2",
+    "@fontsource/roboto@5.2.5/files/roboto-latin-500-normal.woff2":"roboto/roboto-latin-500-normal.woff2",
+    "@fontsource/roboto@5.2.5/files/roboto-latin-700-normal.woff2":"roboto/roboto-latin-700-normal.woff2"
 ]
 
 String getTargetPath(String sourcePath, String targetPath) {
@@ -107,6 +114,7 @@ def qvt2Js = []
 qvt2Js.add(libsPath + '/vue3/vue.global.prod.js')
 qvt2Js.add(libsPath + '/vue3-sfc-loader/vue3-sfc-loader.js')
 qvt2Js.add(libsPath + '/quasar2/quasar.umd.prod.js')
+qvt2Js.add(libsPath + '/quasar2/lang/zh-CN.umd.prod.js')
 qvt2Js.add(staticPath + '/js/WebrootVue.qvt2.min.js')
 
 task minifyJsDir(type: org.gradlewebtools.minify.JsMinifyTask) {

@@ -13,7 +13,9 @@
     <moqui.screen.ScreenThemeResource screenThemeId="DEFAULT_QUASAR2" sequenceNum="4" resourceTypeEnumId="STRT_STYLESHEET"
             resourceValue="/qapps2static/libs/font-awesome/css/v4-font-face.min.css"/>
     <moqui.screen.ScreenThemeResource screenThemeId="DEFAULT_QUASAR2" sequenceNum="5" resourceTypeEnumId="STRT_STYLESHEET"
-            resourceValue="https://fonts.googleapis.com/css?family=Roboto:100,300,400,500,700,900|Material+Icons"/>
+            resourceValue="/qapps2static/css/qapps2-fonts.css"/>
+    <moqui.screen.ScreenThemeResource screenThemeId="DEFAULT_QUASAR2" sequenceNum="7" resourceTypeEnumId="STRT_STYLESHEET"
+            resourceValue="/qapps2static/libs/material-icons/material-icons.css"/>
     <moqui.screen.ScreenThemeResource screenThemeId="DEFAULT_QUASAR2" sequenceNum="6" resourceTypeEnumId="STRT_STYLESHEET"
             resourceValue="/qapps2static/libs/quasar2/quasar.prod.css"/>
     <moqui.screen.ScreenThemeResource screenThemeId="DEFAULT_QUASAR2" sequenceNum="20" resourceTypeEnumId="STRT_STYLESHEET"
@@ -32,7 +34,7 @@
             resourceValue="/qapps2static/lib/MyAccountNav.qvue"/>
 
     <moqui.screen.ScreenThemeResource screenThemeId="DEFAULT_QUASAR2" sequenceNum="200" resourceTypeEnumId="STRT_FOOTER_ITEM">
-        <resourceValue><![CDATA[<div class="col-md-6 text-center q-px-md"><a class="text-grey-1" href="https://www.moqui.org/" target="_blank">${ec.resource.expand('Built on Moqui ${ec.factory.moquiVersion}', '')} · qapps2</a></div>]]></resourceValue>
+        <resourceValue><![CDATA[<div class="col-md-6 text-center q-px-md"><a class="text-grey-1" href="https://www.moqui.org/" target="_blank">${ec.resource.expand('Built on Moqui $\{ec.factory.moquiVersion}', '')} · qapps2</a></div>]]></resourceValue>
     </moqui.screen.ScreenThemeResource>
     <moqui.screen.ScreenThemeResource screenThemeId="DEFAULT_QUASAR2" sequenceNum="201" resourceTypeEnumId="STRT_FOOTER_ITEM">
         <resourceValue><![CDATA[<div class="col-md-6 text-center q-px-md"><a class="text-grey-1" href="/qapps2/ScreenTree">${ec.l10n.localize('Site Map')}</a></div>]]></resourceValue>

@@ -18,6 +18,7 @@
             footer_scripts.add('/qapps2static/libs/vue3/vue.global.js')
             footer_scripts.add('/qapps2static/libs/vue3-sfc-loader/vue3-sfc-loader.js')
             footer_scripts.add('/qapps2static/libs/quasar2/quasar.umd.prod.js')
+            footer_scripts.add('/qapps2static/libs/quasar2/lang/zh-CN.umd.prod.js')
             footer_scripts.add('/qapps2static/js/WebrootVue.qvt2.js')
         }
     ]]></script></pre-actions>

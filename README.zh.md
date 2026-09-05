@@ -74,7 +74,7 @@
 见 [`screen/qapps2.xml`](screen/qapps2.xml)，由 JVM 属性 `instance_purpose` 决定：
 
 - 为空或 `production`：加载 `CombinedBase.min.js` + `CombinedQvt2.min.js`
-- 其他值：加载未压缩拆分文件（Moment、jQuery、`MoquiLib.js`、Vue、vue3-sfc-loader、Quasar、`WebrootVue.qvt2.js`）
+- 其他值：加载未压缩拆分文件（Moment、jQuery、`MoquiLib.js`、Vue、vue3-sfc-loader、Quasar、Quasar zh-CN、`WebrootVue.qvt2.js`）
 
 ## 目录
 
@@ -88,6 +88,7 @@ runtime/component/qapps2/
   doc/qapps2-requirements.md
   data/AppSeedData.xml          # ADMIN 全权限、ALL_USERS VIEW
   data/Qapps2ThemeData.xml      # STT_INTERNAL_QUASAR2、DEFAULT_QUASAR2
+  data/Qapps2L10nData.xml       # 壳 / 宏 / JS / qvue 的 zh_CN 译文
   screen/qapps2.xml
   screen/includes/WebrootVue.qvt2.ftl
   screen/qapps2static.xml
@@ -101,6 +102,12 @@ runtime/component/qapps2/
 `build.gradle` 会下载 Vue 3.5.21、Quasar 2.27.0、vue3-sfc-loader 0.9.5、jQuery 3.7.1、Moment 2.30.1、Font Awesome 6.7.2，再 minify 并合并。
 
 现有业务屏 XML 不必再写一份 `qvt2` 文本。`qvt2` 宏把 `type="qvt"` 当作兼容回退。
+
+## 中文汉化
+
+简体中文条目保存在本组件 [`data/Qapps2L10nData.xml`](data/Qapps2L10nData.xml)，不另建 `qapps2-zh_CN`。需要改 screen / FTL / JS / qvue 只改本组件。locale 为 `zh_CN`，英文 `original` 保留。不依赖 `framework-zh_CN` / `base-component-zh_CN`；`/apps` 业务屏仍可用那些 sidecar 的译文。
+
+用户 locale 设为 `zh_CN` 后打开 `/qapps2/`：壳菜单、通知、重新登录、form-list 工具条、导航 qvue、Quasar 日期控件应为中文。
 
 ## 约定与边界
 

@@ -1,9 +1,9 @@
 <!-- This software is in the public domain under CC0 1.0 Universal plus a Grant of Patent License. -->
 <template>
     <q-btn dense flat icon="edit_location" :label="activeOrg && activeOrg.pseudoId" :class="{'text-positive':activeOrg}">
-        <q-tooltip>Active Organization</q-tooltip>
+        <q-tooltip>{{l10n('Active Organization')}}</q-tooltip>
         <q-menu><q-list dense>
-            <q-item v-if="activeOrg" clickable v-close-popup @click="updateActive(null)"><q-item-section>Clear Active Organization</q-item-section></q-item>
+            <q-item v-if="activeOrg" clickable v-close-popup @click="updateActive(null)"><q-item-section>{{l10n('Clear Active Organization')}}</q-item-section></q-item>
             <q-item v-for="userOrg in userOrgList" :key="userOrg.pseudoId" clickable v-close-popup @click="updateActive(userOrg.partyId)"><q-item-section>
                 {{userOrg.pseudoId}}: {{userOrg.organizationName}}</q-item-section></q-item>
         </q-list></q-menu>
@@ -13,6 +13,7 @@
 module.exports = {
     data: function() { return { activeOrg:null, userOrgList:null } },
     methods: {
+        l10n: function(key) { return (window.moqui && moqui.l10n) ? moqui.l10n(key) : key; },
         updateActive: function(partyId) {
             var vm = this;
             $.ajax({ type:'POST', url:(this.$root.appRootPath + '/apps/setPreference'), error:moqui.handleAjaxError,

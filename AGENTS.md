@@ -20,7 +20,7 @@ Depends on (from `component.xml`):
 - Screens: `screen/qapps2.xml` (shell at `/qapps2`)
 - Static: `screen/qapps2static/` (source JS/CSS/qvue; `libs/` is generated)
 - Macros: `template/screen-macro/`
-- Seed: `data/Qapps2ThemeData.xml`, `data/AppSeedData.xml`
+- Seed: `data/Qapps2ThemeData.xml`, `data/AppSeedData.xml`, `data/Qapps2L10nData.xml`
 - Frontend build: `build.gradle` (download Vue 3 / Quasar 2, minify, combine)
 
 Vendor files under `screen/qapps2static/libs/` and `js/*.min.js` are Gradle
@@ -42,6 +42,11 @@ unminified split files.
 - AJAX screens use `.qvt2` / `.qvue2` / `.qjs2`
 - `confBasePath=/apps`, `confLinkBasePath=/qapps2` (same pattern as `/qapps`)
 - Treat `qvt` render-mode text as compatible when rendering `qvt2`
+- Chinese l10n lives in this component (`data/Qapps2L10nData.xml`). Do not create
+  a `qapps2-zh_CN` sidecar. If a screen, FTL, JS, or qvue string needs
+  `localize()`, change it here. Locale is `zh_CN`. Keep English originals.
+- Do not add `depends-on` for `framework-zh_CN` or `base-component-zh_CN`.
+  Business screens under `/apps` still pick up those sidecars when present.
 
 ## Verify
 

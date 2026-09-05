@@ -457,10 +457,8 @@ ${sri.renderIncludeScreen(.node["@location"], .node["@share-scope"]!)}
     </#if>
     <#assign formDisabled = urlInstance.disableLink>
 
-    <#-- TODO: handle disabled forms, for Quasar looks like will need to disable each field, maybe with a property on m-form and m-form-link (and something else for plain form?) -->
-    <#--  disabled="disabled"</#if> <#if urlInstance.disableLink> :disabled="true"</#if> -->
     <#if !skipStart>
-    <div class="q-my-md"><${formSingleType} name="${formSingleId}" id="${formSingleId}" action="${urlInstance.path}"<#if formSingleNode["@focus-field"]?has_content> focus-field="${formSingleNode["@focus-field"]}"</#if><#rt>
+    <div class="q-my-md"><${formSingleType} name="${formSingleId}" id="${formSingleId}" action="${urlInstance.path}"<#if formDisabled!false> :disable="true"</#if><#if formSingleNode["@focus-field"]?has_content> focus-field="${formSingleNode["@focus-field"]}"</#if><#rt>
             <#t><#if formSingleNode["@body-parameters"]?has_content> :body-parameter-names="[<#list formSingleNode["@body-parameters"]?split(",") as bodyParm>'${bodyParm}'<#sep>,</#list>]"</#if>
             <#t><#if formSingleNode["@background-message"]?has_content> submit-message="${formSingleNode["@background-message"]?html}"</#if>
             <#t><#if formSingleNode["@background-reload-id"]?has_content> submit-reload-id="${formSingleNode["@background-reload-id"]}"</#if>
@@ -1067,7 +1065,7 @@ ${sri.renderIncludeScreen(.node["@location"], .node["@share-scope"]!)}
             <m-form-link name="${headerFormId}_clr" id="${headerFormId}_clr" action="${curUrlInstance.path}"
                      :fields-initial="{<#list hiddenParameterKeys as hiddenParameterKey>'${hiddenParameterKey}':'${Static["org.moqui.util.WebUtilities"].encodeHtmlJsSafe(hiddenParameterMap.get(hiddenParameterKey)!)}'<#sep>,</#list>}">
                 <q-btn dense flat type="submit" icon="clear" color="negative">
-                    <q-tooltip>Reset to Default</q-tooltip></q-btn>
+                    <q-tooltip>${ec.getL10n().localize("Reset to Default")}</q-tooltip></q-btn>
             </m-form-link>
         </div>
         </#if>
@@ -1141,13 +1139,30 @@ ${sri.renderIncludeScreen(.node["@location"], .node["@share-scope"]!)}
 <#if isServerStatic><#-- client rendered, server static -->
     <#assign hiddenParameterMap = sri.getFormHiddenParameters(formNode)>
     <#assign hiddenParameterKeys = hiddenParameterMap.keySet()>
-    <#-- TODO: form-list server-static needs to be revisited still for Quasar -->
+    <#assign userFindInfoList = formListInfo.getUserFormListFinds(ec)!>
+    <#assign savedFindJs><#if userFindInfoList?has_content><#list userFindInfoList as userFindInfo>{id:'${userFindInfo.formListFind.formListFindId}',description:'${Static["org.moqui.util.WebUtilities"].encodeHtmlJsSafe(userFindInfo.description)}'}<#sep>,</#list></#if></#assign>
+    <#assign firstRowActionPath = "">
+    <#assign secondRowActionPath = "">
+    <#assign lastRowActionPath = "">
+    <#if formListInfo.hasFirstRow() && formListInfo.isFirstRowForm()>
+        <#assign firstRowActionPath = sri.makeUrlByType(formNode["@transition-first-row"], "transition", null, "false").path>
+    </#if>
+    <#if formListInfo.hasSecondRow() && formListInfo.isSecondRowForm()>
+        <#assign secondRowActionPath = sri.makeUrlByType(formNode["@transition-second-row"], "transition", null, "false").path>
+    </#if>
+    <#if formListInfo.hasLastRow() && formListInfo.isLastRowForm()>
+        <#assign lastRowActionPath = sri.makeUrlByType(formNode["@transition-last-row"], "transition", null, "false").path>
+    </#if>
     <m-form-list name="${formName}" id="${formId}" rows="${formName}" action="${formListUrlInfo.path}" :multi="${isMulti?c}"<#rt>
             <#t> :skip-form="${skipForm?c}" :skip-header="${skipHeader?c}" :header-form="${needHeaderForm?c}"
             <#t> :header-dialog="${isHeaderDialog?c}" :saved-finds="${(formNode["@saved-finds"]! == "true")?c}"
             <#t> :select-columns="${(formNode["@select-columns"]! == "true")?c}" :all-button="${(formNode["@show-all-button"]! == "true")?c}"
             <#t> :csv-button="${(formNode["@show-csv-button"]! == "true")?c}" :text-button="${(formNode["@show-text-button"]! == "true")?c}"
-            <#lt> :pdf-button="${(formNode["@show-pdf-button"]! == "true")?c}" columns="${numColumns}">
+            <#t> :pdf-button="${(formNode["@show-pdf-button"]! == "true")?c}" columns="${numColumns}"
+            <#t> :saved-find-list="[${savedFindJs}]"<#if formDisabled!false> :disable="true"</#if>
+            <#t><#if firstRowActionPath?has_content> first-row-action="${firstRowActionPath}"</#if>
+            <#t><#if secondRowActionPath?has_content> second-row-action="${secondRowActionPath}"</#if>
+            <#lt><#if lastRowActionPath?has_content> last-row-action="${lastRowActionPath}"</#if>>
         <template v-slot:headerForm="header">
             <#list hiddenParameterKeys as hiddenParameterKey><input type="hidden" name="${hiddenParameterKey}" value="${hiddenParameterMap.get(hiddenParameterKey)!""}"></#list>
             <#assign fieldsJsName = "header.search">
@@ -1155,25 +1170,81 @@ ${sri.renderIncludeScreen(.node["@location"], .node["@share-scope"]!)}
             <#list hiddenFieldList as hiddenField><#recurse hiddenField["header-field"][0]/></#list>
             <#assign fieldsJsName = "">
         </template>
+        <template v-slot:nav="nav">
+            <#if isHeaderDialog>
+                <#assign headerFormButtonText = ec.getL10n().localize("Find Options")>
+                <m-container-dialog id="${formId + "_hdialog"}" title="${headerFormButtonText}">
+                    <template v-slot:button><q-btn dense outline no-caps label="${headerFormButtonText}" icon="search"></q-btn></template>
+                    <q-form @submit.prevent="nav.applySearch(nav.search)">
+                        <#assign fieldsJsName = "nav.search">
+                        <#list formNode["field"] as fieldNode><#if fieldNode["header-field"]?has_content && fieldNode["header-field"][0]?children?has_content>
+                            <#assign headerFieldNode = fieldNode["header-field"][0]>
+                            <#assign allHidden = true>
+                            <#list fieldNode?children as fieldSubNode>
+                                <#if !(fieldSubNode["hidden"]?has_content || fieldSubNode["ignored"]?has_content)><#assign allHidden = false></#if>
+                            </#list>
+                            <#if !(ec.getResource().condition(fieldNode["@hide"]!, "") || allHidden ||
+                                    ((!fieldNode["@hide"]?has_content) && fieldNode?children?size == 1 &&
+                                    (headerFieldNode["hidden"]?has_content || headerFieldNode["ignored"]?has_content)))>
+                                <@formSingleWidget headerFieldNode headerFormId "col-sm" false false/>
+                            <#elseif (headerFieldNode["hidden"])?has_content>
+                                <#recurse headerFieldNode/>
+                            </#if>
+                        </#if></#list>
+                        <#assign fieldsJsName = "">
+                        <div class="q-mt-sm"><q-btn dense outline no-caps type="submit" label="${ec.getL10n().localize("Find")}"></q-btn></div>
+                    </q-form>
+                </m-container-dialog>
+            </#if>
+            <#if formNode["@select-columns"]! == "true">
+                <#assign selectColumnsDialogId = formId + "_SelColsDialog">
+                <#assign fieldsNotInColumns = formListInfo.getFieldsNotReferencedInFormListColumn()>
+                <#assign hiddenChildren>
+                    <#list fieldsNotInColumns as fieldNode>
+                        <#assign fieldSubNode = (fieldNode["header-field"][0])!(fieldNode["default-field"][0])!>
+                        <#assign curFieldTitle><@fieldTitle fieldSubNode/></#assign>
+                        <#t>{id:'${fieldNode["@name"]}',label:'${Static["org.moqui.util.WebUtilities"].encodeHtmlJsSafe(curFieldTitle)}'}
+                    <#sep>,</#list>
+                </#assign>
+                <#assign allColInfoList = formListInfo.getAllColInfo()>
+                <#assign columnFieldInfo>
+                    <#list allColInfoList as columnFieldList>
+                        <#t>{id:'column_${columnFieldList_index}',label:'${ec.l10n.localize("Column")} ${columnFieldList_index + 1}',children:[
+                        <#list columnFieldList as fieldNode>
+                            <#assign fieldSubNode = (fieldNode["header-field"][0])!(fieldNode["default-field"][0])!>
+                            <#assign curFieldTitle><@fieldTitle fieldSubNode/></#assign>
+                            <#t>{id:'${fieldNode["@name"]}',label:'${Static["org.moqui.util.WebUtilities"].encodeHtmlJsSafe(curFieldTitle)}'}
+                        <#sep>,</#list>
+                        <#t>]}
+                    <#sep>,</#list>
+                </#assign>
+                <m-container-dialog id="${selectColumnsDialogId}" title="${ec.l10n.localize("Column Fields")}">
+                    <template v-slot:button><q-btn dense outline no-caps label="${ec.getL10n().localize("Columns")}" icon="table_chart"></q-btn></template>
+                    <m-form-column-config id="${formId}_SelColsForm" action="${sri.buildUrl("formSelectColumns").path}"
+                        :columns-initial="[{id:'hidden', label:'${ec.l10n.localize("Do Not Display")}', children:[${hiddenChildren}]},${columnFieldInfo}]"
+                        form-location="${formListInfo.getFormLocation()}">
+                    </m-form-column-config>
+                </m-container-dialog>
+            </#if>
+        </template>
         <template v-slot:header="header">
-            <#assign fieldsJsName = "header.search"><#assign ownerForm = headerFormId>
+            <#assign fieldsJsName = "header.search"><#assign ownerForm = headerFormId><#assign formListClientSort = true>
             <tr><#list mainColInfoList as columnFieldList>
                 <th><#list columnFieldList as fieldNode>
-                    <div><@formListHeaderField fieldNode isHeaderDialog/></div>
+                    <div><@formListHeaderField fieldNode isHeaderDialog true/></div>
                 </#list></th>
             </#list></tr>
             <#if hasSubColumns>
-                <tr><td colspan="${numColumns}" class="m-form-list-sub-row-cell"><div class="form-list-sub-rows"><table class="table table-striped table-hover table-condensed${tableStyle}"><thead>
+                <tr><td colspan="${numColumns}" class="m-form-list-sub-row-cell"><div class="form-list-sub-rows"><table class="q-table ${tableStyle}"><thead>
                     <#list subColInfoList as subColFieldList><th>
                         <#list subColFieldList as fieldNode>
-                            <div><@formListHeaderField fieldNode isHeaderDialog/></div>
+                            <div><@formListHeaderField fieldNode isHeaderDialog true/></div>
                         </#list>
                     </th></#list>
                 </thead></table></div></td></tr>
             </#if>
-            <#assign fieldsJsName = ""><#assign ownerForm = "">
+            <#assign fieldsJsName = ""><#assign ownerForm = ""><#assign formListClientSort = false>
         </template>
-        <#-- for adding more to form-list nav bar <template v-slot:nav></template> -->
         <template v-slot:rowForm="row">
             <#list hiddenParameterKeys as hiddenParameterKey><input type="hidden" name="${hiddenParameterKey}" value="${hiddenParameterMap.get(hiddenParameterKey)!""}"></#list>
             <#assign fieldsJsName = "row.fields"><#assign ownerForm = formId>
@@ -1181,7 +1252,24 @@ ${sri.renderIncludeScreen(.node["@location"], .node["@share-scope"]!)}
             <#list hiddenFieldList as hiddenField><@formListSubField hiddenField true false isMulti false/></#list>
             <#assign fieldsJsName = ""><#assign ownerForm = "">
         </template>
-        <#-- TODO: add first-row, second-row, last-row forms and rows, here and in form-list Vue component; support add from first, second (or last?) row with add to client list and server submit -->
+        <#if formListInfo.hasFirstRow()>
+        <template v-slot:firstRow="row">
+            <#assign fieldsJsName = "row.fields"><#assign ownerForm = formId + "_first">
+            <#list mainColInfoList as columnFieldList>
+                <td><#list columnFieldList as fieldNode><@formListSubFirst fieldNode true/></#list></td>
+            </#list>
+            <#assign fieldsJsName = ""><#assign ownerForm = "">
+        </template>
+        </#if>
+        <#if formListInfo.hasSecondRow()>
+        <template v-slot:secondRow="row">
+            <#assign fieldsJsName = "row.fields"><#assign ownerForm = formId + "_second">
+            <#list mainColInfoList as columnFieldList>
+                <td><#list columnFieldList as fieldNode><@formListSubSecond fieldNode true/></#list></td>
+            </#list>
+            <#assign fieldsJsName = ""><#assign ownerForm = "">
+        </template>
+        </#if>
         <template v-slot:row="row">
             <#assign fieldsJsName = "row.fields"><#assign ownerForm = formId>
             <#list mainColInfoList as columnFieldList>
@@ -1191,6 +1279,15 @@ ${sri.renderIncludeScreen(.node["@location"], .node["@share-scope"]!)}
             </#list>
             <#assign fieldsJsName = ""><#assign ownerForm = "">
         </template>
+        <#if formListInfo.hasLastRow()>
+        <template v-slot:lastRow="row">
+            <#assign fieldsJsName = "row.fields"><#assign ownerForm = formId + "_last">
+            <#list mainColInfoList as columnFieldList>
+                <td><#list columnFieldList as fieldNode><@formListSubLast fieldNode true/></#list></td>
+            </#list>
+            <#assign fieldsJsName = ""><#assign ownerForm = "">
+        </template>
+        </#if>
     </m-form-list>
 <#else><#-- server rendered, non-static -->
     <#assign listObject = formListInfo.getListObject(true)!>
@@ -1476,7 +1573,7 @@ ${sri.renderIncludeScreen(.node["@location"], .node["@share-scope"]!)}
     <#if sri.doBoundaryComments()><!-- END   form-list[@name=${formName}] --></#if>
     <#assign skipForm = false>
 </#macro>
-<#macro formListHeaderField fieldNode isHeaderDialog>
+<#macro formListHeaderField fieldNode isHeaderDialog clientSort=false>
     <#if fieldNode["header-field"]?has_content>
         <#assign fieldSubNode = fieldNode["header-field"][0]>
     <#elseif fieldNode["default-field"]?has_content>
@@ -1508,8 +1605,13 @@ ${sri.renderIncludeScreen(.node["@location"], .node["@share-scope"]!)}
             <#if ascActive><#assign ascOrderByUrlInfo = descOrderByUrlInfo></#if>
             <#if descActive><#assign descOrderByUrlInfo = ascOrderByUrlInfo></#if>
             <span class="form-order-by">
-                <m-link href="${ascOrderByUrlInfo.pathWithParams}"<#if ascActive> class="active"</#if>><i class="fa fa-caret-up"></i></m-link>
-                <m-link href="${descOrderByUrlInfo.pathWithParams}"<#if descActive> class="active"</#if>><i class="fa fa-caret-down"></i></m-link>
+                <#if clientSort>
+                    <a href="#" class="q-link<#if ascActive> active</#if>" @click.prevent="header.setOrderBy('${caseInsensitive?string("^","")}${curFieldName}')"><i class="fa fa-caret-up"></i></a>
+                    <a href="#" class="q-link<#if descActive> active</#if>" @click.prevent="header.setOrderBy('-${caseInsensitive?string("^","")}${curFieldName}')"><i class="fa fa-caret-down"></i></a>
+                <#else>
+                    <m-link href="${ascOrderByUrlInfo.pathWithParams}"<#if ascActive> class="active"</#if>><i class="fa fa-caret-up"></i></m-link>
+                    <m-link href="${descOrderByUrlInfo.pathWithParams}"<#if descActive> class="active"</#if>><i class="fa fa-caret-down"></i></m-link>
+                </#if>
             </span>
         </#if>
     <#t></div>
@@ -1747,6 +1849,7 @@ a => A, d => D, y => Y
         <#t><#if .node?parent["@tooltip"]?has_content> tooltip="${ec.getResource().expand(.node?parent["@tooltip"], "")}"</#if>
         <#t><#if ownerForm?has_content> form="${ownerForm}"</#if><#if javaFormat?has_content> format="<@getMomentDateFormat javaFormat/>"</#if>
         <#t> class="<@fieldRequiredClass dtSubFieldNode/>"<#if .node.@rules?has_content> :rules="[${.node.@rules}]"</#if>
+        <#t><#if validationClasses?contains("required")> required="required"</#if>
         <#t> auto-year="${.node["@auto-year"]!"true"}" :minuteStep="${.node["@minute-stepping"]!"5"}"></m-date-time>
 </#macro>
 

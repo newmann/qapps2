@@ -88,6 +88,7 @@ runtime/component/qapps2/
   doc/qapps2-requirements.md
   data/AppSeedData.xml          # ADMIN all, ALL_USERS view
   data/Qapps2ThemeData.xml      # STT_INTERNAL_QUASAR2, DEFAULT_QUASAR2
+  data/Qapps2L10nData.xml       # zh_CN messages for shell / macros / JS / qvue
   screen/qapps2.xml
   screen/includes/WebrootVue.qvt2.ftl
   screen/qapps2static.xml

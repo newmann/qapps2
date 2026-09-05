@@ -2,7 +2,12 @@
 
 var moqui = {
     // map locale to a locale that exists in moment-with-locales.js
-    localeMap: { 'zh':'zh-cn' },
+    localeMap: { 'zh':'zh-cn', 'zh-CN':'zh-cn', 'zh_CN':'zh-cn', 'zh-Hans':'zh-cn', 'zh-Hans-CN':'zh-cn' },
+    l10n: function(key) {
+        var labels = this.l10nLabels || {};
+        if (labels[key] != null && labels[key] !== '') return labels[key];
+        return key;
+    },
 
     isString: function(obj) { return typeof obj === 'string'; },
     isBoolean: function(obj) { return typeof obj === 'boolean'; },

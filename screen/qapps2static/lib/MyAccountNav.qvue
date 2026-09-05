@@ -2,19 +2,20 @@
 <template>
     <q-btn-group flat>
         <q-btn dense to="/qapps2/my/User/Notifications" icon="info" :label="notificationCount"><!--  :class="{'text-warning':notificationCount}" -->
-            <q-tooltip>Notifications</q-tooltip></q-btn>
+            <q-tooltip>{{l10n('Notifications')}}</q-tooltip></q-btn>
         <q-btn dense to="/qapps2/my/User/Messages/FindMessage?statusId=CeReceived&toCurrentUser=true" icon="message" :label="messageCount">
-            <q-tooltip>Messages</q-tooltip></q-btn>
+            <q-tooltip>{{l10n('Messages')}}</q-tooltip></q-btn>
         <q-btn dense to="/qapps2/my/User/Calendar/MyCalendar" icon="calendar_today" :label="eventCount">
-            <q-tooltip>Events This Week</q-tooltip></q-btn>
+            <q-tooltip>{{l10n('Events This Week')}}</q-tooltip></q-btn>
         <q-btn dense to="/qapps2/my/User/Task/MyTasks" icon="done" :label="taskCount">
-            <q-tooltip>Open Tasks</q-tooltip></q-btn>
+            <q-tooltip>{{l10n('Open Tasks')}}</q-tooltip></q-btn>
     </q-btn-group>
 </template>
 <script>
 module.exports = {
     data: function() { return { notificationCount:0, messageCount:0, eventCount:0, taskCount:0, updateInterval:null, updateErrors:0 } },
     methods: {
+        l10n: function(key) { return (window.moqui && moqui.l10n) ? moqui.l10n(key) : key; },
         updateCounts: function() {
             var lastNavDiff = Date.now() - this.$root.lastNavTime;
             // NOTE DEJ 20201104 use 10 hour timeout instead of 1 hour, windows/tabs left open should stay logged in for a generous length working day

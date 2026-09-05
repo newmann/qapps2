@@ -17,16 +17,14 @@ qapps2 Vue 3 + Quasar 2 shell. Independent copy of WebrootVue.qvt.ftl.
     <#assign accountCompList = sri.getThemeValues("STRT_HEADER_ACCOUNT_COMP")>
     <#list accountCompList! as accountCompUrl><input type="hidden" class="confAccountPluginUrl" value="${accountCompUrl}"></#list>
 
-    <#assign headerClass = "bg-black text-white">
-
     <q-layout view="hHh LpR fFf">
-        <q-header reveal bordered class="${headerClass}" id="top"><q-toolbar style="font-size:15px;">
+        <q-header reveal bordered id="top" :class="$q.dark.isActive ? 'bg-grey-10 text-white' : 'bg-grey-9 text-white'"><q-toolbar style="font-size:15px;">
             <q-btn dense flat icon="menu" @click="toggleLeftOpen()"></q-btn>
 
             <#assign headerLogoList = sri.getThemeValues("STRT_HEADER_LOGO")>
             <#if headerLogoList?has_content>
                 <m-link href="/apps"><div class="q-mx-md q-mt-sm">
-                    <img src="${sri.buildUrl(headerLogoList?first).getUrl()}" alt="Home" height="32">
+                    <img src="${sri.buildUrl(headerLogoList?first).getUrl()}" alt="${ec.l10n.localize("Home")}" height="32">
                 </div></m-link>
             </#if>
             <#assign headerTitleList = sri.getThemeValues("STRT_HEADER_TITLE")>
@@ -81,7 +79,7 @@ qapps2 Vue 3 + Quasar 2 shell. Independent copy of WebrootVue.qvt.ftl.
                         <q-banner dense rounded class="text-white" :class="'bg-' + getQuasarColor(histItem.type)">
                             <strong>{{histItem.time}}</strong> <span>{{histItem.message}}</span>
                             <template v-if="histItem.link != null" v-slot:action>
-                                <q-btn flat color="white" label="View" @click="setUrl(histItem.link)"></q-btn>
+                                <q-btn flat color="white" label="${ec.l10n.localize("View")}" @click="setUrl(histItem.link)"></q-btn>
                             </template>
                         </q-banner>
                     </q-item-section></q-item>
@@ -119,7 +117,7 @@ qapps2 Vue 3 + Quasar 2 shell. Independent copy of WebrootVue.qvt.ftl.
                                 <q-tooltip>${ec.l10n.localize("Logout")} ${(ec.user.userAccount.userFullName)!''}</q-tooltip></q-btn>
                             <q-btn flat dense @click.prevent="switchDarkLight()" icon="invert_colors">
                                 <q-tooltip>${ec.l10n.localize("Switch Dark/Light")}</q-tooltip></q-btn>
-                            <q-btn flat dense icon="autorenew" color="negative" @click="reLoginShowDialog"><q-tooltip>Re-Login</q-tooltip></q-btn>
+                            <q-btn flat dense icon="autorenew" color="negative" @click="reLoginShowDialog"><q-tooltip>${ec.l10n.localize("Re-Login")}</q-tooltip></q-btn>
                         </q-card-actions>
                     </q-card-section>
                 </q-card></q-menu>
@@ -145,7 +143,7 @@ qapps2 Vue 3 + Quasar 2 shell. Independent copy of WebrootVue.qvt.ftl.
     </q-layout>
     <m-dialog v-model="reLoginShow" width="400" title="${ec.l10n.localize("Re-Login")}">
         <div v-if="reLoginMfaData">
-            <div style="text-align:center;padding-bottom:10px">User <strong>{{username}}</strong> requires an authentication code, you have these options:</div>
+            <div style="text-align:center;padding-bottom:10px">${ec.l10n.localize("User")} <strong>{{username}}</strong> ${ec.l10n.localize("requires an authentication code, you have these options:")}</div>
             <div style="text-align:center;padding-bottom:10px">{{reLoginMfaData.factorTypeDescriptions.join(", ")}}</div>
             <q-form @submit.prevent="reLoginVerifyOtp" autocapitalize="off" autocomplete="off">
                 <q-input v-model="reLoginOtp" name="code" type="password" :autofocus="true"
@@ -159,7 +157,7 @@ qapps2 Vue 3 + Quasar 2 shell. Independent copy of WebrootVue.qvt.ftl.
             </div>
         </div>
         <div v-else>
-            <div style="text-align:center;padding-bottom:10px">Please sign in to continue as user <strong>{{username}}</strong></div>
+            <div style="text-align:center;padding-bottom:10px">${ec.l10n.localize("Please sign in to continue as user")} <strong>{{username}}</strong></div>
             <q-form @submit.prevent="reLoginSubmit" autocapitalize="off" autocomplete="off">
                 <q-input v-model="reLoginPassword" name="password" type="password" :autofocus="true"
                          outlined stack-label label="${ec.l10n.localize("Password")}"></q-input>
@@ -183,5 +181,54 @@ qapps2 Vue 3 + Quasar 2 shell. Independent copy of WebrootVue.qvt.ftl.
         title: '${ec.l10n.localize("Confirm")?js_string}',
         ok: '${ec.l10n.localize("OK")?js_string}',
         cancel: '${ec.l10n.localize("Cancel")?js_string}'
+    };
+    window.moqui.l10nLabels = {
+        View: '${ec.l10n.localize("View")?js_string}',
+        'Submit successful': '${ec.l10n.localize("Submit successful")?js_string}',
+        'Screen not found at': '${ec.l10n.localize("Screen not found at")?js_string}',
+        'Background login successful': '${ec.l10n.localize("Background login successful")?js_string}',
+        'Reload page? All changes will be lost.': '${ec.l10n.localize("Reload page? All changes will be lost.")?js_string}',
+        Confirm: '${ec.l10n.localize("Confirm")?js_string}',
+        OK: '${ec.l10n.localize("OK")?js_string}',
+        Cancel: '${ec.l10n.localize("Cancel")?js_string}',
+        Required: '${ec.l10n.localize("Required")?js_string}',
+        'Page #': '${ec.l10n.localize("Page #")?js_string}',
+        'digits only': '${ec.l10n.localize("digits only")?js_string}',
+        'higher than max': '${ec.l10n.localize("higher than max")?js_string}',
+        Hide: '${ec.l10n.localize("Hide")?js_string}',
+        Display: '${ec.l10n.localize("Display")?js_string}',
+        'New Column': '${ec.l10n.localize("New Column")?js_string}',
+        'Save Changes': '${ec.l10n.localize("Save Changes")?js_string}',
+        'Undo Changes': '${ec.l10n.localize("Undo Changes")?js_string}',
+        'Reset to Default': '${ec.l10n.localize("Reset to Default")?js_string}',
+        This: '${ec.l10n.localize("This")?js_string}',
+        Last: '${ec.l10n.localize("Last")?js_string}',
+        Next: '${ec.l10n.localize("Next")?js_string}',
+        Day: '${ec.l10n.localize("Day")?js_string}',
+        Days: '${ec.l10n.localize("Days")?js_string}',
+        '7 Days': '${ec.l10n.localize("7 Days")?js_string}',
+        '30 Days': '${ec.l10n.localize("30 Days")?js_string}',
+        Week: '${ec.l10n.localize("Week")?js_string}',
+        Weeks: '${ec.l10n.localize("Weeks")?js_string}',
+        Month: '${ec.l10n.localize("Month")?js_string}',
+        Months: '${ec.l10n.localize("Months")?js_string}',
+        Quarter: '${ec.l10n.localize("Quarter")?js_string}',
+        Year: '${ec.l10n.localize("Year")?js_string}',
+        '+/-7d': '${ec.l10n.localize("+/-7d")?js_string}',
+        '+/-30d': '${ec.l10n.localize("+/-30d")?js_string}',
+        Offset: '${ec.l10n.localize("Offset")?js_string}',
+        Period: '${ec.l10n.localize("Period")?js_string}',
+        'Period Select Mode': '${ec.l10n.localize("Period Select Mode")?js_string}',
+        'Date Range Mode': '${ec.l10n.localize("Date Range Mode")?js_string}',
+        From: '${ec.l10n.localize("From")?js_string}',
+        Thru: '${ec.l10n.localize("Thru")?js_string}',
+        Clear: '${ec.l10n.localize("Clear")?js_string}',
+        'Search or Lookup by ID': '${ec.l10n.localize("Search or Lookup by ID")?js_string}',
+        'Active Organization': '${ec.l10n.localize("Active Organization")?js_string}',
+        'Clear Active Organization': '${ec.l10n.localize("Clear Active Organization")?js_string}',
+        Notifications: '${ec.l10n.localize("Notifications")?js_string}',
+        Messages: '${ec.l10n.localize("Messages")?js_string}',
+        'Events This Week': '${ec.l10n.localize("Events This Week")?js_string}',
+        'Open Tasks': '${ec.l10n.localize("Open Tasks")?js_string}'
     };
 </script>

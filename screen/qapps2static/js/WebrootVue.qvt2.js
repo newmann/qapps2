@@ -31,6 +31,10 @@ function qapps2SlotText(nodes) {
 }
 
 moqui.urlExtensions = { js:'qjs2', vue:'qvue2', vuet:'qvt2' }
+moqui.qapps2Debug = false;
+moqui.qapps2Log = function() {
+    if (moqui.qapps2Debug && window.console && console.info) console.info.apply(console, arguments);
+};
 
 // simple stub for define if it doesn't exist (ie no require.js, etc); mimic pattern of require.js define()
 if (!window.define) window.define = function(name, deps, callback) {
@@ -167,7 +171,7 @@ moqui.notifyGrowl = function(jsonObj) {
     // TODO: jsonObj.icon
     moqui.webrootVue.$q.notify($.extend({}, moqui.notifyOptsInfo, { type:jsonObj.type, message:jsonObj.title,
         actions: [
-            { label: 'View', color: 'white', handler: function () { moqui.webrootVue.setUrl(jsonObj.link); } }
+            { label: moqui.l10n('View'), color: 'white', handler: function () { moqui.webrootVue.setUrl(jsonObj.link); } }
         ]
     }));
     moqui.webrootVue.addNotify(jsonObj.title, jsonObj.type, jsonObj.link, jsonObj.icon);
@@ -199,7 +203,7 @@ moqui.loadComponent = function(urlInfo, callback, divId) {
         bodyParameters = urlInfo.bodyParameters; renderModes = urlInfo.renderModes;
     }
     // if Quasar says it's mobile then tell the server via _uiType parameter
-    console.log("Load Component " + JSON.stringify(urlInfo) + " Window Width " + window.innerWidth + " Quasar Platform: " + JSON.stringify(Quasar.Platform.is) + " search: " + search);
+    moqui.qapps2Log("Load Component " + JSON.stringify(urlInfo));
     if ((window.innerWidth <= 600 || Quasar.Platform.is.mobile) && (!search || search.indexOf("_uiType") === -1)) {
         search = (search || '') + '&_uiType=mobile';
     }
@@ -215,7 +219,7 @@ moqui.loadComponent = function(urlInfo, callback, divId) {
     */
     var cachedComp = moqui.componentCache.get(path);
     if (cachedComp) {
-        console.info('found cached component for path ' + path + ': ' + JSON.stringify(cachedComp));
+        moqui.qapps2Log('found cached component for path ' + path);
         callback(cachedComp);
         return;
     }
@@ -230,7 +234,7 @@ moqui.loadComponent = function(urlInfo, callback, divId) {
         isSfcPath = true;
     }
     if (isSfcPath) {
-        console.info("loadComponent vue " + url + (divId ? " id " + divId : ''));
+        moqui.qapps2Log("loadComponent vue " + url);
         var vueAjaxSettings = { type:"GET", url:url, error:moqui.handleLoadError, success: function(resp, status, jqXHR) {
                 if (jqXHR.status === 205) {
                     var redirectTo = jqXHR.getResponseHeader("X-Redirect-To")
@@ -264,7 +268,7 @@ moqui.loadComponent = function(urlInfo, callback, divId) {
     if (extraPath && extraPath.length > 0) url += ('/' + extraPath);
     if (search && search.length > 0) url += ('?' + search);
 
-    console.info("loadComponent " + url + (divId ? " id " + divId : ''));
+    moqui.qapps2Log("loadComponent " + url);
     var ajaxSettings = { type:"GET", url:url, error:moqui.handleLoadError, success: function(resp, status, jqXHR) {
         if (jqXHR.status === 205) {
             var redirectTo = jqXHR.getResponseHeader("X-Redirect-To")
@@ -277,7 +281,7 @@ moqui.loadComponent = function(urlInfo, callback, divId) {
         var isServerStatic = (cacheControl && cacheControl.indexOf("max-age") >= 0);
         if (moqui.isString(resp) && resp.length > 0) {
             if (isJsPath || resp.slice(0,7) === 'define(') {
-                console.info("loaded JS from " + url + (divId ? " id " + divId : ""));
+                moqui.qapps2Log("loaded JS from " + url);
                 var jsCompObj = eval(resp);
                 if (jsCompObj.template) {
                     jsCompObj = qapps2RawComp(jsCompObj);
@@ -295,7 +299,7 @@ moqui.loadComponent = function(urlInfo, callback, divId) {
             } else {
                 var templateText = resp.replace(/<script/g, '<m-script').replace(/<\/script>/g, '</m-script>').replace(/<link/g, '<m-stylesheet');
                 templateText = qapps2ProtectMermaidGraphs(templateText);
-                console.info("loaded HTML template from " + url + (divId ? " id " + divId : "") /*+ ": " + templateText*/);
+                moqui.qapps2Log("loaded HTML template from " + url);
                 // using this fixes encoded values in attributes and such that Vue does not decode (but is decoded in plain HTML),
                 //     but causes many other problems as all needed encoding is lost too: moqui.decodeHtml(templateText)
                 var compObj = qapps2RawComp({ template: '<div' + (divId && divId.length > 0 ? ' id="' + divId + '"' : '') + '>' + templateText + '</div>' });
@@ -312,7 +316,7 @@ moqui.loadComponent = function(urlInfo, callback, divId) {
 };
 
 /* ========== placeholder components ========== */
-moqui.NotFound = qapps2RawComp({ template: '<div id="current-page-root"><h4>Screen not found at {{this.$root.currentPath}}</h4></div>' });
+moqui.NotFound = qapps2RawComp({ template: '<div id="current-page-root"><h4>{{moqui.l10n("Screen not found at")}} {{this.$root.currentPath}}</h4></div>' });
 moqui.EmptyComponent = qapps2RawComp({ template: '<div id="current-page-root"><div class="spinner"><div>&nbsp;</div></div></div>' });
 
 if (!moqui.confirmLabels) moqui.confirmLabels = { title: 'Confirm', ok: 'OK', cancel: 'Cancel' };
@@ -424,7 +428,6 @@ qapps2Register('router-link', {
             var questIdx = path.indexOf('?');
             if (questIdx > 0) { path = path.slice(0, questIdx); }
             var activePath = this.$root.currentPath;
-            console.warn("router-link path [" + path + "] active path [" + activePath + "]");
             return (activePath.startsWith(path));
         },
         // TODO: this should be equals instead of startsWith()
@@ -675,17 +678,47 @@ qapps2Register('m-editable', {
         parameterName:{type:String,'default':'value'}, widgetType:{type:String,'default':'textarea'},
         loadUrl:String, loadParameters:Object, indicator:{type:String,'default':'Saving'}, tooltip:{type:String,'default':'Click to edit'},
         cancel:{type:String,'default':'Cancel'}, submit:{type:String,'default':'Save'} },
-    mounted: function() {
-        var reqData = $.extend({ moquiSessionToken:this.$root.moquiSessionToken, parameterName:this.parameterName }, this.urlParameters);
-        var edConfig = { indicator:this.indicator, tooltip:this.tooltip, cancel:this.cancel, submit:this.submit,
-                name:this.parameterName, type:this.widgetType, cssclass:'editable-form', submitdata:reqData };
-        if (this.loadUrl && this.loadUrl.length > 0) {
-            var vm = this; edConfig.loadurl = this.loadUrl; edConfig.loadtype = "POST";
-            edConfig.loaddata = function(value) { return $.extend({ currentValue:value, moquiSessionToken:vm.$root.moquiSessionToken }, vm.loadParameters); };
+    data: function() { return { editing:false, saving:false, displayValue:this.labelValue, editValue:this.labelValue }; },
+    template:
+        '<span :id="id" class="editable-label">' +
+            '<span v-if="!editing" class="cursor-pointer" @click="startEdit">{{displayValue}}' +
+                '<q-tooltip>{{tooltip}}</q-tooltip></span>' +
+            '<span v-else class="row no-wrap items-center q-gutter-xs">' +
+                '<q-input v-if="widgetType!==\'textarea\'" dense outlined v-model="editValue" :disable="saving"></q-input>' +
+                '<q-input v-else dense outlined type="textarea" autogrow v-model="editValue" :disable="saving"></q-input>' +
+                '<q-btn dense outline no-caps :label="submit" :loading="saving" @click="saveEdit"></q-btn>' +
+                '<q-btn dense flat no-caps :label="cancel" :disable="saving" @click="cancelEdit"></q-btn>' +
+            '</span>' +
+        '</span>',
+    methods: {
+        startEdit: function() {
+            var vm = this;
+            this.editValue = this.displayValue;
+            this.editing = true;
+            if (this.loadUrl && this.loadUrl.length) {
+                $.ajax({ type:"POST", url:this.loadUrl, data:$.extend({ currentValue:this.displayValue, moquiSessionToken:this.$root.moquiSessionToken }, this.loadParameters || {}),
+                    error:moqui.handleAjaxError, success:function(resp) {
+                        if (resp != null) vm.editValue = moqui.isPlainObject(resp) ? (resp.value || resp) : resp;
+                    }});
+            }
+        },
+        cancelEdit: function() { this.editing = false; this.editValue = this.displayValue; },
+        saveEdit: function() {
+            var vm = this;
+            var data = $.extend({ moquiSessionToken:this.$root.moquiSessionToken }, this.urlParameters || {});
+            data[this.parameterName] = this.editValue;
+            this.saving = true;
+            $.ajax({ type:"POST", url:this.url, data:data, error:function(jqXHR, textStatus, errorThrown) {
+                    vm.saving = false;
+                    moqui.handleAjaxError(jqXHR, textStatus, errorThrown);
+                }, success:function() {
+                    vm.displayValue = vm.editValue;
+                    vm.saving = false;
+                    vm.editing = false;
+                }});
         }
-        // TODO, replace with something in quasar: $(this.$el).editable(this.url, edConfig);
     },
-    render: function(createEl) { return createEl(this.labelType, { attrs:{ id:this.id, 'class':'editable-label' }, domProps: { innerHTML:this.labelValue } }); }
+    watch: { labelValue: function(newVal) { this.displayValue = newVal; if (!this.editing) this.editValue = newVal; } }
 });
 
 /* ========== form components ========== */
@@ -705,7 +738,6 @@ moqui.checkboxSetMixin = {
             for (var i = 0; i < csSize; i++) this.checkboxStates[i] = newState;
         },
         clickCheckbox: function(event, index) {
-            console.warn("clickCheckbox idx " + index + " shift " + event.shiftKey + " lastIdx " + this.checkboxLastIndex + " lastChange " + this.checkboxLastChange);
             if (event.shiftKey && (null != this.checkboxLastIndex) && (this.checkboxLastIndex !== index)) {
                 var dir = index > this.checkboxLastIndex ? 1 : -1;
                 var change = this.checkboxLastChange;
@@ -764,19 +796,21 @@ qapps2Register('m-form', {
     mixins:[moqui.checkboxSetMixin],
     props: { fieldsInitial:Object, action:{type:String,required:true}, method:{type:String,'default':'POST'},
         submitMessage:String, submitReloadId:String, submitHideId:String, focusField:String, noValidate:Boolean,
-        excludeEmptyFields:Boolean, parentCheckboxSet:Object },
+        excludeEmptyFields:Boolean, parentCheckboxSet:Object, disable:Boolean },
     data: function() { return { fields:Object.assign({}, this.fieldsInitial),
         fieldsOriginal:Object.assign({}, this.fieldsInitial), buttonClicked:null }},
     // NOTE: <slot v-bind:fields="fields"> also requires prefix from caller, using <m-form v-slot:default="formProps"> in qvt.ftl macro
     // see https://vuejs.org/v2/guide/components-slots.html
     template:
-        '<q-form ref="qForm" @submit.prevent="submitForm" @reset.prevent="resetForm" autocapitalize="off" autocomplete="off">' +
+        '<q-form ref="qForm" class="m-form" :class="{ \'m-form-disabled\': disable }" @submit.prevent="submitForm" @reset.prevent="resetForm" autocapitalize="off" autocomplete="off">' +
+            '<fieldset :disabled="!!disable">' +
             '<slot :fields="fields" :checkboxAllState="checkboxAllState" :setCheckboxAllState="setCheckboxAllState"' +
                 ' :checkboxStates="checkboxStates" :clickCheckbox="clickCheckbox" :addCheckboxParameters="addCheckboxParameters"' +
-                ' :blurSubmitForm="blurSubmitForm" :hasFieldsChanged="hasFieldsChanged" :fieldChanged="fieldChanged"></slot>' +
-        '</q-form>',
+                ' :blurSubmitForm="blurSubmitForm" :hasFieldsChanged="hasFieldsChanged" :fieldChanged="fieldChanged" :disable="disable"></slot>' +
+            '</fieldset></q-form>',
     methods: {
         submitForm: function() {
+            if (this.disable) return;
             if (this.noValidate) {
                 this.submitGo();
             } else {
@@ -819,15 +853,14 @@ qapps2Register('m-form', {
             this.fields = Object.assign({}, this.fieldsOriginal);
         },
         blurSubmitForm: function(event) {
-            // add to vue template form fields, like in DefaultScreenMacros.qvt.ftl: @blur="formProps.blurSubmitForm($event)"
-            // TODO MAYBE only send value for field changed (plus all hidden fields), where applicable will help with multi-user conflicts?
-            // FUTURE: do more than just submit the form: support submit without reload screen and only reload form data
+            if (this.disable) return true;
             if (this.hasFieldsChanged) {
                 this.submitForm();
             }
             return true;
         },
         submitGo: function() {
+            if (this.disable) return;
             var vm = this;
             var jqEl = $(this.$el);
             // get button pressed value and disable ASAP to avoid double submit
@@ -962,7 +995,7 @@ qapps2Register('m-form', {
                 moqui.webrootVue.$q.notify($.extend({}, moqui.notifyOpts, { message:message }));
                 moqui.webrootVue.addNotify(message, 'success');
             } else if (!notified) {
-                moqui.webrootVue.$q.notify($.extend({}, moqui.notifyOpts, { message:"Submit successful" }));
+                moqui.webrootVue.$q.notify($.extend({}, moqui.notifyOpts, { message: moqui.l10n("Submit successful") }));
             }
         },
         fieldChanged: function(name) {
@@ -989,13 +1022,16 @@ qapps2Register('m-form', {
 });
 qapps2Register('m-form-link', {
     name: "mFormLink",
-    props: { fieldsInitial:Object, action:{type:String,required:true}, focusField:String, noValidate:Boolean, bodyParameterNames:Array },
+    props: { fieldsInitial:Object, action:{type:String,required:true}, focusField:String, noValidate:Boolean, bodyParameterNames:Array, disable:Boolean },
     data: function() { return { fields:Object.assign({}, this.fieldsInitial), fieldsOriginal:Object.assign({}, this.fieldsInitial) }},
     template:
-        '<q-form ref="qForm" @submit.prevent="submitForm" @reset.prevent="resetForm" autocapitalize="off" autocomplete="off">' +
-            '<slot :clearForm="clearForm" :fields="fields" :hasFieldsChanged="hasFieldsChanged" :fieldChanged="fieldChanged"></slot></q-form>',
+        '<q-form ref="qForm" class="m-form-link" :class="{ \'m-form-disabled\': disable }" @submit.prevent="submitForm" @reset.prevent="resetForm" autocapitalize="off" autocomplete="off">' +
+            '<fieldset :disabled="!!disable">' +
+            '<slot :clearForm="clearForm" :fields="fields" :hasFieldsChanged="hasFieldsChanged" :fieldChanged="fieldChanged" :disable="disable"></slot>' +
+            '</fieldset></q-form>',
     methods: {
         submitForm: function() {
+            if (this.disable) return;
             if (this.noValidate) {
                 this.submitGo();
             } else {
@@ -1010,6 +1046,7 @@ qapps2Register('m-form-link', {
             }
         },
         submitGo: function() {
+            if (this.disable) return;
             // get button pressed value and disable ASAP to avoid double submit
             var btnName = null, btnValue = null;
             var $btn = $(document.activeElement);
@@ -1084,8 +1121,10 @@ qapps2Register('m-form-link', {
             this.fields = Object.assign({}, this.fieldsInitial);
         },
         clearForm: function() {
-            // TODO: probably need to iterate over object and clear each value
-            this.fields = {};
+            var cleared = {};
+            var keys = Object.keys(this.fields || {});
+            for (var i = 0; i < keys.length; i++) cleared[keys[i]] = '';
+            this.fields = cleared;
         },
         fieldChanged: function(name) {
             var curValue = this.fields[name];
@@ -1100,13 +1139,10 @@ qapps2Register('m-form-link', {
         }
     },
     mounted: function() {
-        var jqEl = $(this.$el);
-        /* TODO if (!this.noValidate) jqEl.validate({ errorClass: 'help-block', errorElement: 'span',
-            highlight: function(element, errorClass, validClass) { $(element).parents('.form-group').removeClass('has-success').addClass('has-error'); },
-            unhighlight: function(element, errorClass, validClass) { $(element).parents('.form-group').removeClass('has-error').addClass('has-success'); }
-        });*/
-        // TODO jqEl.find('[data-toggle="tooltip"]').tooltip({placement:'auto top'});
-        if (this.focusField && this.focusField.length > 0) jqEl.find('[name=' + this.focusField + ']').addClass('default-focus').focus();
+        if (this.focusField && this.focusField.length > 0) {
+            var focusEl = this.$el && this.$el.querySelector('[name="' + this.focusField + '"]');
+            if (focusEl) { focusEl.classList.add('default-focus'); focusEl.focus(); }
+        }
     }
 });
 
@@ -1150,8 +1186,8 @@ qapps2Register('m-form-go-page', {
     data: function() { return { pageIndex:"" } },
     template:
     '<q-form v-if="!formList || (formList.paginate && formList.paginate.pageMaxIndex > 4)" @submit.prevent="goPage">' +
-        '<q-input dense v-model="pageIndex" type="text" size="4" name="pageIndex" placeholder="Page #"' +
-            '   :rules="[val => /^\\d*$/.test(val) || \'digits only\', val => ((formList && +val <= formList.paginate.pageMaxIndex) || (maxIndex && +val < maxIndex)) || \'higher than max\']">' +
+        '<q-input dense v-model="pageIndex" type="text" size="4" name="pageIndex" :placeholder="moqui.l10n(\'Page #\')"' +
+            '   :rules="[val => /^\\d*$/.test(val) || moqui.l10n(\'digits only\'), val => ((formList && +val <= formList.paginate.pageMaxIndex) || (maxIndex && +val < maxIndex)) || moqui.l10n(\'higher than max\')]">' +
             '<template v-slot:append><q-btn dense flat no-caps type="submit" icon="redo" @click="goPage"></q-btn></template>' +
         '</q-input>' +
     '</q-form>',
@@ -1174,15 +1210,15 @@ qapps2Register('m-form-column-config', {
                 '<q-item-label header>{{column.label}}</q-item-label>' +
                 '<q-item v-for="(field, fieldIdx) in column.children" :key="field.id">' +
                     '<q-item-section side v-if="columnIdx !== 0">' +
-                        '<q-btn dense flat icon="cancel" @click="hideField(columnIdx, fieldIdx)"><q-tooltip>Hide</q-tooltip></q-btn>' +
+                        '<q-btn dense flat icon="cancel" @click="hideField(columnIdx, fieldIdx)"><q-tooltip>{{moqui.l10n("Hide")}}</q-tooltip></q-btn>' +
                     '</q-item-section>' +
                     '<q-item-section><q-item-label>{{field.label}}</q-item-label></q-item-section>' +
                     '<q-item-section v-if="columnIdx === 0" side>' +
-                        '<q-btn-dropdown dense outline no-caps label="Display"><q-list dense>' +
+                        '<q-btn-dropdown dense outline no-caps :label="moqui.l10n(\'Display\')"><q-list dense>' +
                             '<q-item v-for="(toColumn, toColumnIdx) in columns.slice(1)" :key="toColumn.id" clickable>' +
                                 '<q-item-section @click="moveToCol(columnIdx, fieldIdx, toColumnIdx+1)">{{toColumn.label}}</q-item-section></q-item>' +
                             '<q-item clickable>' +
-                                '<q-item-section @click="moveToCol(columnIdx, fieldIdx, columns.length+1)">New Column</q-item-section></q-item>' +
+                                '<q-item-section @click="moveToCol(columnIdx, fieldIdx, columns.length+1)">{{moqui.l10n("New Column")}}</q-item-section></q-item>' +
                         '</q-list></q-btn-dropdown>' +
                     '</q-item-section>' +
                     '<q-item-section v-else side><q-btn-group flat>' +
@@ -1194,9 +1230,9 @@ qapps2Register('m-form-column-config', {
                 '</q-item>' +
             '</q-list>' +
             '<div class="q-my-md">' +
-                '<q-btn dense outline no-caps @click.prevent="saveColumns()" label="Save Changes"></q-btn>' +
-                '<q-btn dense outline no-caps @click.prevent="resetColumns()" label="Undo Changes"></q-btn>' +
-                '<q-btn dense outline no-caps @click.prevent="resetToDefault()" label="Reset to Default"></q-btn>' +
+                '<q-btn dense outline no-caps @click.prevent="saveColumns()" :label="moqui.l10n(\'Save Changes\')"></q-btn>' +
+                '<q-btn dense outline no-caps @click.prevent="resetColumns()" :label="moqui.l10n(\'Undo Changes\')"></q-btn>' +
+                '<q-btn dense outline no-caps @click.prevent="resetToDefault()" :label="moqui.l10n(\'Reset to Default\')"></q-btn>' +
             '</div>' +
         '</m-form>',
     methods: {
@@ -1250,64 +1286,91 @@ qapps2Register('m-form-column-config', {
                     fields[curKey] = this.findParameters[curKey];
                 }
             }
-            console.log("Save column config " + this.formLocation + " Window Width " + window.innerWidth + " Quasar Platform: " + JSON.stringify(Quasar.Platform.is));
+            moqui.qapps2Log("Save column config " + this.formLocation);
             if (window.innerWidth <= 600 || Quasar.Platform.is.mobile) fields._uiType = 'mobile';
         }
     }
 });
 
-// TODO: m-form-list still needs a LOT of work, full re-implementation of form-list FTL macros for full client rendering so that component is fully static and data driven
 qapps2Register('m-form-list', {
     name: "mFormList",
-    // rows can be a full path to a REST service or transition, a plain form name on the current screen, or a JS Array with the actual rows
+    // rows: REST/transition path, form name on the current screen, or a JS Array of rows
     props: { name:{type:String,required:true}, id:String, rows:{type:[String,Array],required:true}, search:{type:Object},
         action:String, multi:Boolean, skipForm:Boolean, skipHeader:Boolean, headerForm:Boolean, headerDialog:Boolean,
         savedFinds:Boolean, selectColumns:Boolean, allButton:Boolean, csvButton:Boolean, textButton:Boolean, pdfButton:Boolean,
-        columns:[String,Number] },
-    data: function() { return { rowList:[], paginate:null, searchObj:null, moqui:moqui } },
-    // slots (props): headerForm (search), header (search), nav (), rowForm (fields), row (fields)
-    // TODO: QuickSavedFind drop-down
-    // TODO: change find options form to update searchObj and run fetchRows instead of changing main page and reloading
-    // TODO: update window url on paginate and other searchObj update?
-    // TODO: review for actual static (no server side rendering, cachable)
+        columns:[String,Number], savedFindList:{type:Array,'default':function(){ return []; }},
+        firstRowAction:String, secondRowAction:String, lastRowAction:String, disable:Boolean },
+    data: function() {
+        return { rowList:[], paginate:null, searchObj:{}, firstRowFields:{}, secondRowFields:{}, lastRowFields:{},
+            moqui:moqui, formListApi:null };
+    },
+    created: function() { this.formListApi = this; },
     template:
-    '<div>' +
+    '<div class="m-form-list" :class="{ \'m-form-disabled\': disable }">' +
         '<template v-if="!multi && !skipForm">' +
-            '<m-form v-for="(fields, rowIndex) in rowList" :name="idVal+\'_\'+rowIndex" :id="idVal+\'_\'+rowIndex" :action="action">' +
+            '<m-form v-for="(fields, rowIndex) in rowList" :key="idVal+\'_\'+rowIndex" :name="idVal+\'_\'+rowIndex" :id="idVal+\'_\'+rowIndex" :action="action" :disable="disable">' +
                 '<slot name="rowForm" :fields="fields"></slot></m-form></template>' +
-        '<m-form v-if="multi && !skipForm" :name="idVal" :id="idVal" :action="action">' +
+        '<m-form v-if="multi && !skipForm" :name="idVal" :id="idVal" :action="action" :disable="disable">' +
             '<input type="hidden" name="moquiFormName" :value="name"><input type="hidden" name="_isMulti" value="true">' +
             '<template v-for="(fields, rowIndex) in rowList"><slot name="rowForm" :fields="fields"></slot></template></m-form>' +
-        '<m-form-link v-if="!skipHeader && headerForm && !headerDialog" :name="idVal+\'_header\'" :id="idVal+\'_header\'" :action="$root.currentLinkPath">' +
-            '<input v-if="searchObj && searchObj.orderByField" type="hidden" name="orderByField" :value="searchObj.orderByField">' +
-            '<slot name="headerForm" :search="searchObj"></slot></m-form-link>' +
+        '<m-form v-if="firstRowAction" :name="idVal+\'_first\'" :id="idVal+\'_first\'" :action="firstRowAction" :fields-initial="firstRowFields" :disable="disable"></m-form>' +
+        '<m-form v-if="secondRowAction" :name="idVal+\'_second\'" :id="idVal+\'_second\'" :action="secondRowAction" :fields-initial="secondRowFields" :disable="disable"></m-form>' +
+        '<m-form v-if="lastRowAction" :name="idVal+\'_last\'" :id="idVal+\'_last\'" :action="lastRowAction" :fields-initial="lastRowFields" :disable="disable"></m-form>' +
+        '<q-form v-if="!skipHeader && headerForm && !headerDialog" @submit.prevent="applySearch(searchObj)">' +
+            '<slot name="headerForm" :search="searchObj" :apply-search="applySearch"></slot></q-form>' +
         '<div class="q-table__container q-table__card q-table--horizontal-separator q-table--dense q-table--flat"><table class="q-table" :id="idVal+\'_table\'"><thead>' +
             '<tr class="form-list-nav-row"><th :colspan="columns?columns:\'100\'"><q-bar>' +
-                '<q-btn v-if="savedFinds || headerDialog" :id="idVal+\'_hdialog_button\'" dense outline no-caps icon="find_in_page" label="Find Options"></q-btn>' +
-                '<q-btn v-if="selectColumns" :id="idVal+\'_SelColsDialog_button\'" dense outline no-caps icon="table_chart" label="Columns"></q-btn>' +
-                '<m-form-paginate :paginate="paginate" :form-list="this"></m-form-paginate>' +
-                '<m-form-go-page :id-val="idVal" :form-list="this"></m-form-go-page>' +
+                '<q-btn-dropdown v-if="savedFinds && savedFindList.length" dense outline no-caps icon="bookmark" :label="activeFindLabel">' +
+                    '<q-list dense>' +
+                        '<q-item clickable v-close-popup @click="clearSavedFind"><q-item-section>Clear Current Find</q-item-section></q-item>' +
+                        '<q-item v-for="findItem in savedFindList" :key="findItem.id" clickable v-close-popup @click="applySavedFind(findItem)">' +
+                            '<q-item-section>{{findItem.description}}</q-item-section></q-item>' +
+                    '</q-list></q-btn-dropdown>' +
+                '<slot name="nav" :search="searchObj" :apply-search="applySearch" :form-list="formListApi"></slot>' +
+                '<m-form-paginate :paginate="paginate" :form-list="formListApi"></m-form-paginate>' +
+                '<m-form-go-page :id-val="idVal" :form-list="formListApi"></m-form-go-page>' +
+                '<q-btn-dropdown v-if="allButton" dense outline no-caps :label="pageSizeLabel">' +
+                    '<q-list dense><q-item v-for="sizeOpt in pageSizeOptions" :key="sizeOpt" clickable v-close-popup @click="setPageSize(sizeOpt)">' +
+                        '<q-item-section>{{sizeOpt}}</q-item-section></q-item></q-list></q-btn-dropdown>' +
                 '<q-btn v-if="csvButton" type="a" :href="csvUrl" dense outline no-caps label="CSV"></q-btn>' +
-                '<q-btn v-if="textButton" :id="idVal+\'_TextDialog_button\'" dense outline no-caps icon="description" label="Text"></q-btn>' +
-                '<q-btn v-if="pdfButton" :id="idVal+\'_PdfDialog_button\'" dense outline no-caps icon="picture_as_pdf" label="PDF"></q-btn>' +
-                '<slot name="nav"></slot>' +
+                '<slot name="navExtra"></slot>' +
             '</q-bar></th></tr>' +
-            '<slot name="header" :search="searchObj"></slot>' +
-        '</thead><tbody><tr v-for="(fields, rowIndex) in rowList"><slot name="row" :fields="fields" :row-index="rowIndex" :moqui="moqui"></slot></tr>' +
+            '<slot name="header" :search="searchObj" :set-order-by="setOrderBy" :apply-search="applySearch"></slot>' +
+        '</thead><tbody>' +
+            '<tr v-if="$slots.firstRow" class="first"><slot name="firstRow" :fields="firstRowFields"></slot></tr>' +
+            '<tr v-if="$slots.secondRow" class="second"><slot name="secondRow" :fields="secondRowFields"></slot></tr>' +
+            '<tr v-for="(fields, rowIndex) in rowList" :key="rowIndex"><slot name="row" :fields="fields" :row-index="rowIndex" :moqui="moqui"></slot></tr>' +
+            '<tr v-if="$slots.lastRow" class="last"><slot name="lastRow" :fields="lastRowFields"></slot></tr>' +
         '</tbody></table></div>' +
     '</div>',
     computed: {
         idVal: function() { if (this.id && this.id.length > 0) { return this.id; } else { return this.name; } },
         csvUrl: function() { return this.$root.currentPath + '?' + moqui.objToSearch($.extend({}, this.searchObj,
-            { renderMode:'csv', pageNoLimit:'true', lastStandalone:'true', saveFilename:(this.name + '.csv') })); }
+            { renderMode:'csv', pageNoLimit:'true', lastStandalone:'true', saveFilename:(this.name + '.csv') })); },
+        pageSizeOptions: function() { return [10,20,50,100,200,500]; },
+        pageSizeLabel: function() { return String((this.paginate && this.paginate.pageSize) || this.searchObj.pageSize || 20); },
+        activeFindLabel: function() {
+            var findId = this.searchObj && this.searchObj.formListFindId;
+            if (findId && this.savedFindList) {
+                for (var i = 0; i < this.savedFindList.length; i++) {
+                    if (String(this.savedFindList[i].id) === String(findId)) return this.savedFindList[i].description;
+                }
+            }
+            return 'Saved Finds';
+        }
     },
     methods: {
+        currentSearch: function() {
+            if (this.searchObj && !$.isEmptyObject(this.searchObj)) return this.searchObj;
+            if (this.search) return this.search;
+            return this.$root.currentParameters || {};
+        },
         fetchRows: function() {
-            if (moqui.isArray(this.rows)) { console.warn('Tried to fetch form-list-body rows but rows prop is an array'); return; }
+            if (moqui.isArray(this.rows)) { return; }
             var vm = this;
-            var searchObj = this.search; if (!searchObj) { searchObj = this.$root.currentParameters; }
+            var searchObj = this.currentSearch();
             var url = this.rows; if (url.indexOf('/') === -1) { url = this.$root.currentPath + '/actions/' + url; }
-            console.info("Fetching rows with url " + url + " searchObj " + JSON.stringify(searchObj));
+            moqui.qapps2Log("Fetching form-list rows " + url);
             $.ajax({ type:"GET", url:url, data:searchObj, dataType:"json", headers:{Accept:'application/json'},
                 error:moqui.handleAjaxError, success: function(list, status, jqXHR) {
                     if (list && moqui.isArray(list)) {
@@ -1319,21 +1382,66 @@ qapps2Register('m-form-list', {
                                 pageRangeLow:Number(getHeader("X-Page-Range-Low")), pageRangeHigh:Number(getHeader("X-Page-Range-High")) };
                         }
                         vm.rowList = list;
-                        console.info("Fetched " + list.length + " rows, paginate: " + JSON.stringify(vm.paginate));
                     }
                 }});
         },
-        setPageIndex: function(newIndex) {
-            if (!this.searchObj) { this.searchObj = { pageIndex:newIndex }} else { this.searchObj.pageIndex = newIndex; }
+        syncUrl: function() {
+            var params = $.extend({}, this.searchObj);
+            this.$root.currentParameters = params;
+            var path = this.$root.currentLinkPath || this.$root.currentPath;
+            var search = moqui.objToSearch(params);
+            var url = path + (search ? '?' + search : '');
+            if (window.history && window.history.replaceState) {
+                window.history.replaceState(null, this.$root.ScreenTitle || '', url);
+            }
+            var hist = this.$root.navHistoryList && this.$root.navHistoryList[0];
+            if (hist) hist.pathWithParams = url;
+        },
+        applySearch: function(fields) {
+            var next = $.extend({}, this.searchObj, fields || {});
+            next.pageIndex = 0;
+            this.searchObj = next;
+            this.syncUrl();
             this.fetchRows();
+        },
+        setPageIndex: function(newIndex) {
+            if (!this.searchObj) this.searchObj = {};
+            this.searchObj.pageIndex = newIndex;
+            this.syncUrl();
+            this.fetchRows();
+        },
+        setPageSize: function(newSize) {
+            if (!this.searchObj) this.searchObj = {};
+            this.searchObj.pageSize = newSize;
+            this.searchObj.pageIndex = 0;
+            this.syncUrl();
+            this.fetchRows();
+        },
+        setOrderBy: function(orderByField) {
+            if (!this.searchObj) this.searchObj = {};
+            this.searchObj.orderByField = orderByField;
+            this.searchObj.pageIndex = 0;
+            this.syncUrl();
+            this.fetchRows();
+        },
+        applySavedFind: function(findItem) {
+            if (!findItem) return;
+            this.applySearch({ formListFindId: findItem.id });
+        },
+        clearSavedFind: function() {
+            var next = $.extend({}, this.searchObj);
+            delete next.formListFindId;
+            this.applySearch(next);
         }
     },
     watch: {
         rows: function(newRows) { if (moqui.isArray(newRows)) { this.rowList = newRows; } else { this.fetchRows(); } },
-        search: function () { this.fetchRows(); }
+        search: { deep:true, handler:function(newSearch) {
+            if (newSearch) { this.searchObj = $.extend({}, this.searchObj, newSearch); this.fetchRows(); }
+        } }
     },
     mounted: function() {
-        if (this.search) { this.searchObj = this.search; } else { this.searchObj = this.$root.currentParameters; }
+        this.searchObj = $.extend({}, this.$root.currentParameters || {}, this.search || {});
         if (moqui.isArray(this.rows)) { this.rowList = this.rows; } else { this.fetchRows(); }
     }
 });
@@ -1345,11 +1453,11 @@ qapps2Register('m-date-time', {
         size:String, format:String, tooltip:String, form:String, required:String, rules:Array, disable:Boolean, autoYear:String,
         minuteStep:{type:Number,'default':5}, bgColor:String },
     template:
-    // NOTE: tried :fill-mask="formatVal" but results in all Y, only supports single character for mask placeholder... how to show more helpful date mask?
-    // TODO: add back @focus="focusDate" @blur="blurDate" IFF needed given different mask/etc behavior
-    '<q-input dense outlined stack-label :label="label" v-bind:modelValue="modelValue" v-on:update:modelValue="$emit(\'update:modelValue\', $event)" :rules="rules"' +
+    '<q-input dense outlined stack-label :label="label" v-bind:modelValue="modelValue" v-on:update:modelValue="$emit(\'update:modelValue\', $event)" :rules="dateRules"' +
             ' :mask="inputMask" fill-mask :id="id" :name="name" :form="form" :disable="disable" :size="sizeVal"' +
+            ' :required="isRequired" @focus="focusDate" @blur="blurDate"' +
             ' style="max-width:max-content;" :bg-color="bgColor">' +
+        '<q-tooltip v-if="tooltip">{{tooltip}}</q-tooltip>' +
         '<template v-slot:prepend v-if="type==\'date\' || type==\'date-time\' || !type">' +
             '<q-icon name="event" class="cursor-pointer">' +
                 '<q-popup-proxy ref="qDateProxy" transition-show="scale" transition-hide="scale">' +
@@ -1366,8 +1474,6 @@ qapps2Register('m-date-time', {
         '</template>' +
         '<template v-slot:after><slot name="after"></slot></template>' +
     '</q-input>',
-    // TODO: how to add before slot pass through without the small left margin when nothing in the slot? <template v-slot:before><slot name="before"></slot></template>
-    // TODO handle required (:required="required == 'required' ? true : false")
     methods: {
         focusDate: function(event) {
             if (this.type === 'time' || this.autoYear === 'false') return;
@@ -1397,72 +1503,43 @@ qapps2Register('m-date-time', {
             (this.type === 'date' ? ['l', 'L', 'YYYY-MM-DD'] : ['YYYY-MM-DD HH:mm', 'YYYY-MM-DD HH:mm:ss', 'MM/DD/YYYY HH:mm']); },
         sizeVal: function() { var size = this.size; if (size && size.length) { return size; }
             return this.type === 'time' ? '9' : (this.type === 'date' ? '10' : '16'); },
-        timePattern: function() { return '^(?:(?:([01]?\\d|2[0-3]):)?([0-5]?\\d):)?([0-5]?\\d)$'; }
-    },
-    mounted: function() {
-        var vm = this;
-        var value = this.modelValue;
-        var format = this.formatVal;
-        var jqEl = $(this.$el);
-        /* TODO
-        if (this.type === "time") {
-            jqEl.datetimepicker({toolbarPlacement:'top', debug:false, showClose:true, showClear:true, showTodayButton:true, useStrict:true,
-                defaultDate:(value && value.length ? moment(value,this.formatVal) : null), format:format,
-                extraFormats:this.extraFormatsVal, stepping:this.minuteStep, locale:this.$root.locale,
-                keyBinds: {up: function () { if(this.date()) this.date(this.date().clone().add(1, 'H')); },
-                           down: function () { if(this.date()) this.date(this.date().clone().subtract(1, 'H')); },
-                           'control up': null, 'control down': null,
-                           'shift up': function () { if(this.date()) this.date(this.date().clone().add(this.stepping(), 'm')); },
-                           'shift down': function () { if(this.date()) this.date(this.date().clone().subtract(this.stepping(), 'm')); }}});
-            jqEl.on("dp.change", function() { jqEl.val(jqEl.find("input").first().val()); jqEl.trigger("change"); vm.$emit('update:modelValue', this.modelValue); })
-
-            jqEl.val(jqEl.find("input").first().val());
-
-            // TODO if (this.tooltip && this.tooltip.length) jqEl.tooltip({ title: this.tooltip, placement: "auto" });
-        } else {
-            jqEl.datetimepicker({toolbarPlacement:'top', debug:false, showClose:true, showClear:true, showTodayButton:true, useStrict:true,
-                defaultDate:(value && value.length ? moment(value,this.formatVal) : null), format:format,
-                extraFormats:this.extraFormatsVal, stepping:this.minuteStep, locale:this.$root.locale,
-                keyBinds: {up: function () { if(this.date()) this.date(this.date().clone().add(1, 'd')); },
-                           down: function () { if(this.date()) this.date(this.date().clone().subtract(1, 'd')); },
-                           'alt up': function () { if(this.date()) this.date(this.date().clone().add(1, 'M')); },
-                           'alt down': function () { if(this.date()) this.date(this.date().clone().subtract(1, 'M')); },
-                           'control up': null, 'control down': null,
-                           'shift up': function () { if(this.date()) this.date(this.date().clone().add(1, 'y')); },
-                           'shift down': function () { if(this.date()) this.date(this.date().clone().subtract(1, 'y')); } }});
-            jqEl.on("dp.change", function() { jqEl.val(jqEl.find("input").first().val()); jqEl.trigger("change"); vm.$emit('update:modelValue', this.modelValue); })
-
-            jqEl.val(jqEl.find("input").first().val());
-
-            // TODO if (this.tooltip && this.tooltip.length) jqEl.tooltip({ title: this.tooltip, placement: "auto" });
+        timePattern: function() { return '^(?:(?:([01]?\\d|2[0-3]):)?([0-5]?\\d):)?([0-5]?\\d)$'; },
+        isRequired: function() { return this.required === 'required' || this.required === true || this.required === 'true'; },
+        dateRules: function() {
+            var rules = this.rules ? this.rules.slice() : [];
+            if (this.isRequired) {
+                rules.push(function(val) { return (val != null && String(val).trim().length > 0) || moqui.l10n('Required'); });
+            }
+            return rules;
         }
-        */
-        // TODO if (format === "YYYY-MM-DD") { jqEl.find('input').inputmask("yyyy-mm-dd", { clearIncomplete:false, clearMaskOnLostFocus:true, showMaskOnFocus:true, showMaskOnHover:false, removeMaskOnSubmit:false }); }
-        // TODO if (format === "YYYY-MM-DD HH:mm") { jqEl.find('input').inputmask("yyyy-mm-dd hh:mm", { clearIncomplete:false, clearMaskOnLostFocus:true, showMaskOnFocus:true, showMaskOnHover:false, removeMaskOnSubmit:false }); }
     }
 });
 
-moqui.dateOffsets = [{value:'0',label:'This'},{value:'-1',label:'Last'},{value:'1',label:'Next'},
-    {value:'-2',label:'-2'},{value:'2',label:'+2'},{value:'-3',label:'-3'},{value:'-4',label:'-4'},{value:'-6',label:'-6'},{value:'-12',label:'-12'}];
-moqui.datePeriods = [{value:'day',label:'Day'},{value:'7d',label:'7 Days'},{value:'30d',label:'30 Days'},{value:'week',label:'Week'},{value:'weeks',label:'Weeks'},
-    {value:'month',label:'Month'},{value:'months',label:'Months'},{value:'quarter',label:'Quarter'},{value:'year',label:'Year'},{value:'7r',label:'+/-7d'},{value:'30r',label:'+/-30d'}];
+moqui.dateOffsets = function() {
+    return [{value:'0',label:moqui.l10n('This')},{value:'-1',label:moqui.l10n('Last')},{value:'1',label:moqui.l10n('Next')},
+        {value:'-2',label:'-2'},{value:'2',label:'+2'},{value:'-3',label:'-3'},{value:'-4',label:'-4'},{value:'-6',label:'-6'},{value:'-12',label:'-12'}];
+};
+moqui.datePeriods = function() {
+    return [{value:'day',label:moqui.l10n('Day')},{value:'7d',label:moqui.l10n('7 Days')},{value:'30d',label:moqui.l10n('30 Days')},{value:'week',label:moqui.l10n('Week')},{value:'weeks',label:moqui.l10n('Weeks')},
+        {value:'month',label:moqui.l10n('Month')},{value:'months',label:moqui.l10n('Months')},{value:'quarter',label:moqui.l10n('Quarter')},{value:'year',label:moqui.l10n('Year')},{value:'7r',label:moqui.l10n('+/-7d')},{value:'30r',label:moqui.l10n('+/-30d')}];
+};
 moqui.emptyOpt = {value:'',label:''};
 qapps2Register('m-date-period', {
     name: "mDatePeriod",
     props: { fields:{type:Object,required:true}, name:{type:String,required:true}, id:String,
         allowEmpty:Boolean, fromThruType:{type:String,'default':'date'}, form:String, tooltip:String, label:String },
-    data: function() { return { fromThruMode:false, dateOffsets:moqui.dateOffsets.slice(),
-        datePeriods:moqui.datePeriods.slice(), fieldsOriginal:Object.assign({}, this.fields) } },
+    data: function() { return { fromThruMode:false, dateOffsets:moqui.dateOffsets(),
+        datePeriods:moqui.datePeriods(), fieldsOriginal:Object.assign({}, this.fields) } },
     template:
     '<div v-if="fromThruMode" class="row">' +
-        '<m-date-time :name="name+\'_from\'" :id="id+\'_from\'" :label="label+\' From\'" :form="form" :type="fromThruType"' +
+        '<m-date-time :name="name+\'_from\'" :id="id+\'_from\'" :label="label+\' \'+moqui.l10n(\'From\')" :form="form" :type="fromThruType"' +
             ' v-model="fields[name+\'_from\']" :bg-color="fieldChanged(name+\'_from\')?($q.dark.isActive?\'blue-10\':\'blue-1\'):\'\'"></m-date-time>' +
         '<q-icon class="q-my-auto" name="remove"></q-icon>' +
-        '<m-date-time :name="name+\'_thru\'" :id="id+\'_thru\'" :label="label+\' Thru\'" :form="form" :type="fromThruType"' +
+        '<m-date-time :name="name+\'_thru\'" :id="id+\'_thru\'" :label="label+\' \'+moqui.l10n(\'Thru\')" :form="form" :type="fromThruType"' +
             ' v-model="fields[name+\'_thru\']" :bg-color="fieldChanged(name+\'_thru\')?($q.dark.isActive?\'blue-10\':\'blue-1\'):\'\'">' +
             '<template v-slot:after>' +
-                '<q-btn dense flat icon="calendar_view_day" @click="toggleMode"><q-tooltip>Period Select Mode</q-tooltip></q-btn>' +
-                '<q-btn dense flat icon="clear" @click="clearAll"><q-tooltip>Clear</q-tooltip></q-btn>' +
+                '<q-btn dense flat icon="calendar_view_day" @click="toggleMode"><q-tooltip>{{moqui.l10n("Period Select Mode")}}</q-tooltip></q-btn>' +
+                '<q-btn dense flat icon="clear" @click="clearAll"><q-tooltip>{{moqui.l10n("Clear")}}</q-tooltip></q-btn>' +
             '</template>' +
         '</m-date-time>' +
     '</div>' +
@@ -1473,10 +1550,10 @@ qapps2Register('m-date-period', {
         '<template v-slot:before>' +
             '<q-select class="q-pr-xs" dense outlined options-dense emit-value map-options v-model="fields[name+\'_poffset\']"' +
                 ' :name="name+\'_poffset\'" :bg-color="fieldChanged(name+\'_poffset\')?($q.dark.isActive?\'blue-10\':\'blue-1\'):\'\'"' +
-                ' stack-label label="Offset" :options="dateOffsets" :form="form" behavior="menu"></q-select>' +
+                ' stack-label :label="moqui.l10n(\'Offset\')" :options="dateOffsets" :form="form" behavior="menu"></q-select>' +
             '<q-select dense outlined options-dense emit-value map-options v-model="fields[name+\'_period\']"' +
                 ' :name="name+\'_period\'" :bg-color="fieldChanged(name+\'_period\')?($q.dark.isActive?\'blue-10\':\'blue-1\'):\'\'"' +
-                ' stack-label label="Period" :options="datePeriods" :form="form" behavior="menu"></q-select>' +
+                ' stack-label :label="moqui.l10n(\'Period\')" :options="datePeriods" :form="form" behavior="menu"></q-select>' +
         '</template>' +
         '<template v-slot:prepend>' +
             '<q-icon name="event" class="cursor-pointer">' +
@@ -1486,8 +1563,8 @@ qapps2Register('m-date-period', {
             '</q-icon>' +
         '</template>' +
         '<template v-slot:after>' +
-            '<q-btn dense flat icon="date_range" @click="toggleMode"><q-tooltip>Date Range Mode</q-tooltip></q-btn>' +
-            '<q-btn dense flat icon="clear" @click="clearAll"><q-tooltip>Clear</q-tooltip></q-btn>' +
+            '<q-btn dense flat icon="date_range" @click="toggleMode"><q-tooltip>{{moqui.l10n("Date Range Mode")}}</q-tooltip></q-btn>' +
+            '<q-btn dense flat icon="clear" @click="clearAll"><q-tooltip>{{moqui.l10n("Clear")}}</q-tooltip></q-btn>' +
         '</template>' +
     '</q-input></div>',
     methods: {
@@ -2160,7 +2237,7 @@ qapps2Register('m-subscreens-active', {
         var pathChanged = (this.pathName !== newPath);
         this.pathName = newPath;
         if (!newPath || newPath.length === 0) {
-            console.info("in m-subscreens-active newPath is empty, loading EmptyComponent and returning true");
+            moqui.qapps2Log("in m-subscreens-active newPath is empty, loading EmptyComponent");
             this.activeComponent = qapps2RawComp(moqui.EmptyComponent);
             return true;
         }
@@ -2180,7 +2257,7 @@ qapps2Register('m-subscreens-active', {
         urlInfo.bodyParameters = root.bodyParameters;
         var navMenuItem = root.navMenuList[pathIndex + root.basePathSize];
         if (navMenuItem && navMenuItem.renderModes) urlInfo.renderModes = navMenuItem.renderModes;
-        console.info('m-subscreens-active loadActive pathIndex ' + pathIndex + ' pathName ' + vm.pathName + ' urlInfo ' + JSON.stringify(urlInfo));
+        moqui.qapps2Log('m-subscreens-active loadActive pathIndex ' + pathIndex + ' pathName ' + vm.pathName);
         root.loading++;
         root.currentLoadRequest = moqui.loadComponent(urlInfo, function(comp) {
             root.currentLoadRequest = null;
@@ -2349,7 +2426,7 @@ var qapps2RootOptions = {
             // console.info('reloadSubscreens path ' + JSON.stringify(this.currentPathList) + ' currentParameters ' + JSON.stringify(this.currentParameters) + ' currentSearch ' + this.currentSearch);
             var fullPathList = this.currentPathList;
             var activeSubscreens = this.activeSubscreens;
-            console.info("reloadSubscreens currentPathList " + JSON.stringify(this.currentPathList));
+            moqui.qapps2Log("reloadSubscreens currentPathList " + JSON.stringify(this.currentPathList));
             if (fullPathList.length === 0 && activeSubscreens.length > 0) {
                 activeSubscreens.splice(1);
                 activeSubscreens[0].loadActive();
@@ -2382,17 +2459,15 @@ var qapps2RootOptions = {
             if (contComp) { contComp.hide(); } else { console.error("Container with ID " + contId + " not found, not hidding"); }},
 
         addNavPlugin: function(url) { var vm = this; moqui.loadComponent(this.appRootPath + url, function(comp) { vm.navPlugins.push(qapps2RawComp(comp)); }) },
-        addNavPluginsWait: function(urlList, urlIndex) { if (urlList && urlList.length > urlIndex) {
-            this.addNavPlugin(urlList[urlIndex]);
-            var vm = this;
-            if (urlList.length > (urlIndex + 1)) { setTimeout(function(){ vm.addNavPluginsWait(urlList, urlIndex + 1); }, 500); }
-        } },
+        addNavPluginsWait: function(urlList) {
+            if (!urlList || !urlList.length) return;
+            for (var i = 0; i < urlList.length; i++) this.addNavPlugin(urlList[i]);
+        },
         addAccountPlugin: function(url) { var vm = this; moqui.loadComponent(this.appRootPath + url, function(comp) { vm.accountPlugins.push(qapps2RawComp(comp)); }) },
-        addAccountPluginsWait: function(urlList, urlIndex) { if (urlList && urlList.length > urlIndex) {
-            this.addAccountPlugin(urlList[urlIndex]);
-            var vm = this;
-            if (urlList.length > (urlIndex + 1)) { setTimeout(function(){ vm.addAccountPluginsWait(urlList, urlIndex + 1); }, 500); }
-        } },
+        addAccountPluginsWait: function(urlList) {
+            if (!urlList || !urlList.length) return;
+            for (var i = 0; i < urlList.length; i++) this.addAccountPlugin(urlList[i]);
+        },
         addUrlListener: function(urlListenerFunction) {
             if (this.urlListeners.indexOf(urlListenerFunction) >= 0) return;
             this.urlListeners.push(urlListenerFunction);
@@ -2514,7 +2589,7 @@ var qapps2RootOptions = {
             this.reLoginOtp = null;
             this.reLoginMfaData = null;
             // show success notification, add to notify history
-            var msg = 'Background login successful';
+            var msg = moqui.l10n('Background login successful');
             // show for 12 seconds because we want it to show longer than the no user authenticated notification which shows for 15 seconds (minus some password typing time)
             this.$q.notify({ timeout:12000, type:'positive', message:msg });
             this.addNotify(msg, 'positive');
@@ -2534,7 +2609,7 @@ var qapps2RootOptions = {
             }
         },
         reLoginReload: function () {
-            if (confirm("Reload page? All changes will be lost."))
+            if (confirm(moqui.l10n("Reload page? All changes will be lost.")))
                 window.location.href = this.currentLinkUrl;
         },
         reLoginSendOtp: function(factorId) {
@@ -2576,7 +2651,7 @@ var qapps2RootOptions = {
             // fullPathList is the path after the base path, menu and link paths are in the screen tree context only so need to subtract off the appRootPath (Servlet Context Path)
             var basePathSize = this.basePathSize;
             var fullPathList = cur.path.split('/').slice(basePathSize + 1);
-            console.info('nav updated fullPath ' + JSON.stringify(fullPathList) + ' currentPathList ' + JSON.stringify(this.currentPathList) + ' cur.path ' + cur.path + ' basePathSize ' + basePathSize);
+            moqui.qapps2Log('nav updated fullPath ' + JSON.stringify(fullPathList));
             this.currentPathList = fullPathList;
             this.reloadSubscreens();
 
@@ -2680,8 +2755,8 @@ var qapps2RootOptions = {
         this.sessionTokenBc = new BroadcastChannel("SessionToken");
         this.sessionTokenBc.onmessage = this.receiveBcCsrfToken;
 
-        this.addNavPluginsWait(conf.navPluginUrlList || [], 0);
-        this.addAccountPluginsWait(conf.accountPluginUrlList || [], 0);
+        this.addNavPluginsWait(conf.navPluginUrlList || []);
+        this.addAccountPluginsWait(conf.accountPluginUrlList || []);
     },
     mounted: function() {
         // Vue 3 $el is a fragment/first child, not #apps-root; the container keeps display:none from the FTL.
@@ -2785,9 +2860,20 @@ function qapps2ReadConf(rootEl) {
         accountPluginUrlList: vals('confAccountPluginUrl')
     };
 }
+function qapps2ApplyLocale(locale) {
+    if (!locale) return;
+    var mapped = (moqui.localeMap && moqui.localeMap[locale]) ? moqui.localeMap[locale] : locale;
+    if (window.moment && moment.locale) moment.locale(mapped);
+    var QLang = window.Quasar && (Quasar.Lang || Quasar.lang);
+    if (QLang && QLang.set) {
+        var pack = QLang.zhCN || QLang['zh-CN'];
+        if (pack && String(locale).indexOf('zh') === 0) QLang.set(pack);
+    }
+}
 function qapps2Boot() {
     var rootEl = document.getElementById('apps-root');
     moqui.qapps2Conf = qapps2ReadConf(rootEl);
+    qapps2ApplyLocale(moqui.qapps2Conf.locale);
     var app = Vue.createApp(qapps2RootOptions);
     app.config.globalProperties.moqui = moqui;
     app.config.globalProperties.moment = moment;
