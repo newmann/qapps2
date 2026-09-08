@@ -4,7 +4,7 @@
 
 并行内部 UI 入口 `/qapps2`，栈为 **Vue 3.5 + Quasar UI 2.27**（UMD）。业务屏树仍是 `/apps`，与 `/qapps`、`/vapps` 共用。壳、屏宏、vendor、render mode 都在本组件内。
 
-版本 **0.1.0**。默认内部 UI 仍是 `/qapps`；本入口需主动访问。
+版本 **0.1.0**。本组件安装时，`/` 与登录后的根路径走 `/qapps2`（`MoquiConf.xml` 的 `default-subscreen`）。`/qapps` 仍可直达。没有本组件时，webroot 缺省仍是 `/qapps`。
 
 ## 与其他入口的对比
 
@@ -14,7 +14,7 @@
 | `/vapps` | Vuetify | `.vuet` |
 | `/qapps2` | Vue 3.5 + Quasar 2.27 | `.qvt2` / `.qvue2` / `.qjs2` |
 
-不改 `webroot.xml` 的 `default-item`。需要时直接打开 `/qapps2`。
+不改 `webroot.xml` 的 `default-item`（仍是 `qapps`）。本组件 `MoquiConf.xml` 设 `default-subscreen="qapps2"`，仅在组件存在时把根路径切到 `/qapps2`。
 
 ## URL 与数据流
 
@@ -64,7 +64,8 @@
    java -jar moqui.war
    ```
 
-   - 界面：http://localhost:8080/qapps2/
+   - 界面：http://localhost:8080/（本组件安装时缺省进入 `/qapps2/`）
+   - 显式壳：http://localhost:8080/qapps2/
    - 演示账号（已加载 demo 数据）：`john.doe` / `moqui`
    - 验收：http://localhost:8080/qapps2/tools/Service/ServiceRun
    - `/qapps` 与 `/apps` 必须仍可正常使用
@@ -81,7 +82,7 @@
 ```text
 runtime/component/qapps2/
   component.xml
-  MoquiConf.xml                 # /qapps2、/qapps2static、qvt2 / qjs2 / qvue2
+  MoquiConf.xml                 # /qapps2、/qapps2static、default-subscreen、qvt2 / qjs2 / qvue2
   build.gradle                  # 下载 vendor、minify、Combined*.min.js
   .gitignore                    # libs/ 与 js/*.min.js
   AGENTS.md
@@ -101,7 +102,7 @@ runtime/component/qapps2/
 
 `build.gradle` 会下载 Vue 3.5.21、Quasar 2.27.0、vue3-sfc-loader 0.9.5、jQuery 3.7.1、Moment 2.30.1、Font Awesome 6.7.2，再 minify 并合并。
 
-现有业务屏 XML 不必再写一份 `qvt2` 文本。`qvt2` 宏把 `type="qvt"` 当作兼容回退。
+现有业务屏 XML 不必再写一份 `qvt2` / `qvue2` / `qjs2` 文本。宏把 `type="qvt"`、`type="qvue"`、`type="qjs"` 当作兼容回退。壳在 `render-modes` 含 `qjs2`、`qjs` 或 `js` 时请求 `.qjs2`。
 
 ## 中文汉化
 

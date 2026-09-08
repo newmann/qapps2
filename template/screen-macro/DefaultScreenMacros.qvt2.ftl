@@ -178,11 +178,19 @@ ${sri.renderSectionInclude(.node)}
         <#if !title?has_content><#assign title = buttonText></#if>
         <#assign urlInstance = sri.makeUrlByType(.node["@transition"], "transition", .node, "true")>
         <#assign ddDivId><@nodeId .node/></#assign>
+        <#assign ddLinkType = ec.getResource().expandNoL10n(.node["@link-type"]!"button", "")>
+        <#if !ddLinkType?has_content><#assign ddLinkType = "button"></#if>
+        <#assign ddButtonClass = ec.getResource().expandNoL10n(.node["@button-style"]!"", "")>
+        <#assign ddColor><@getQuasarColor ec.getResource().expandNoL10n(.node["@type"]!"primary", "")/></#assign>
         <#if urlInstance.disableLink>
-            <q-btn disabled dense outline no-caps icon="open_in_new" label="${buttonText}" color="<@getQuasarColor ec.getResource().expandNoL10n(.node["@type"]!"primary", "")/>" class="${ec.getResource().expandNoL10n(.node["@button-style"]!"", "")}"></q-btn>
+            <#if ddLinkType == "anchor">
+                <span class="disabled">${buttonText}</span>
+            <#else>
+                <q-btn disabled dense outline no-caps icon="open_in_new" label="${buttonText}" color="${ddColor}" class="${ddButtonClass}"></q-btn>
+            </#if>
         <#else>
-            <m-dynamic-dialog id="${ddDivId}" url="${urlInstance.urlWithParams}" color="<@getQuasarColor ec.getResource().expandNoL10n(.node["@type"]!"primary", "")/>" width="${.node["@width"]!""}"
-                    button-text="${buttonText}" button-class="${ec.getResource().expandNoL10n(.node["@button-style"]!"", "")}" title="${title}"<#if _openDialog! == ddDivId> :openDialog="true"</#if>></m-dynamic-dialog>
+            <m-dynamic-dialog id="${ddDivId}" url="${urlInstance.urlWithParams}" color="${ddColor}" width="${.node["@width"]!""}"
+                    button-text="${buttonText}" button-class="${ddButtonClass}" title="${title}" link-type="${ddLinkType}"<#if _openDialog! == ddDivId> :openDialog="true"</#if>></m-dynamic-dialog>
         </#if>
         <#-- used to use afterFormText for m-dynamic-dialog inside another form, needed now?
         <#assign afterFormText>

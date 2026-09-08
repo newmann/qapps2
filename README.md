@@ -4,7 +4,9 @@
 
 Parallel internal UI entry at `/qapps2` on **Vue 3.5 + Quasar UI 2.27** (UMD). The business screen tree is still `/apps`, shared with `/qapps` and `/vapps`. The shell, screen macros, vendor files, and render modes live in this component.
 
-Version **0.1.0**. Default internal UI remains `/qapps`; this entry is opt-in.
+Version **0.1.0**. While this component is installed, `/` and post-login
+root use `/qapps2` (`MoquiConf.xml` `default-subscreen`). `/qapps` remains
+available. Without this component, webroot still defaults to `/qapps`.
 
 ## Compared with other entries
 
@@ -14,7 +16,9 @@ Version **0.1.0**. Default internal UI remains `/qapps`; this entry is opt-in.
 | `/vapps` | Vuetify | `.vuet` |
 | `/qapps2` | Vue 3.5 + Quasar 2.27 | `.qvt2` / `.qvue2` / `.qjs2` |
 
-`webroot.xml` `default-item` is unchanged. Navigate to `/qapps2` explicitly.
+`webroot.xml` `default-item` stays `qapps`. This component's `MoquiConf.xml`
+sets `default-subscreen="qapps2"` so the root path uses `/qapps2` only when
+the component is present.
 
 ## URL and data flow
 
@@ -64,7 +68,8 @@ Depends on `webroot` and `tools` (`component.xml`). Runtime must already be pres
    java -jar moqui.war
    ```
 
-   - UI: http://localhost:8080/qapps2/
+   - UI: http://localhost:8080/ (defaults to `/qapps2/` when this component is installed)
+   - Explicit shell: http://localhost:8080/qapps2/
    - Demo login (after demo data): `john.doe` / `moqui`
    - Check: http://localhost:8080/qapps2/tools/Service/ServiceRun
    - `/qapps` and `/apps` must keep working
@@ -81,7 +86,7 @@ From [`screen/qapps2.xml`](screen/qapps2.xml), JVM property `instance_purpose`:
 ```text
 runtime/component/qapps2/
   component.xml
-  MoquiConf.xml                 # /qapps2, /qapps2static, qvt2 / qjs2 / qvue2
+  MoquiConf.xml                 # /qapps2, /qapps2static, default-subscreen, qvt2 / qjs2 / qvue2
   build.gradle                  # download vendor, minify, Combined*.min.js
   .gitignore                    # libs/ and js/*.min.js
   AGENTS.md
@@ -101,7 +106,10 @@ runtime/component/qapps2/
 
 `build.gradle` downloads Vue 3.5.21, Quasar 2.27.0, vue3-sfc-loader 0.9.5, jQuery 3.7.1, Moment 2.30.1, and Font Awesome 6.7.2, then minifies and combines.
 
-Existing screen XML does not need a separate `qvt2` text block. The `qvt2` macros treat `type="qvt"` as a compatible fallback.
+Existing screen XML does not need separate `qvt2` / `qvue2` / `qjs2` text
+blocks. The macros treat `type="qvt"`, `type="qvue"`, and `type="qjs"` as
+compatible fallbacks. The shell requests `.qjs2` when `render-modes`
+lists `qjs2`, `qjs`, or `js`.
 
 ## Boundaries
 

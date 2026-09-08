@@ -2,7 +2,7 @@
 <moqui-conf xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
         xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/moqui-conf-3.xsd">
     <screen-facade>
-        <screen location="component://webroot/screen/webroot.xml">
+        <screen location="component://webroot/screen/webroot.xml" default-subscreen="qapps2">
             <subscreens-item name="qapps2" menu-include="false"
                     location="component://qapps2/screen/qapps2.xml"/>
             <subscreens-item name="qapps2static" menu-include="false"

@@ -15,15 +15,26 @@ along with this software (see the LICENSE.md file). If not, see
 <#macro "include-screen">${sri.renderIncludeScreen(.node["@location"], .node["@share-scope"]!)}</#macro>
 
 <#-- ============== Render Mode Elements ============== -->
+<#-- qapps2: qvt2/qvue2/qjs2 also match qvt/qvue/qjs so business screens need not list *2 types -->
+<#function qapps2TextTypeMatches typeAttr>
+    <#if !typeAttr?has_content || typeAttr == "any"><#return true></#if>
+    <#local types = typeAttr?split(",")>
+    <#local mode = sri.getRenderMode()>
+    <#if types?seq_contains(mode)><#return true></#if>
+    <#if mode == "qvt2" && types?seq_contains("qvt")><#return true></#if>
+    <#if mode == "qvue2" && types?seq_contains("qvue")><#return true></#if>
+    <#if mode == "qjs2" && types?seq_contains("qjs")><#return true></#if>
+    <#return false>
+</#function>
 <#macro "render-mode">
     <#if .node["text"]?has_content>
         <#list .node["text"] as textNode><#if !textNode["@type"]?has_content || textNode["@type"] == "any"><#local textToUse = textNode/></#if></#list>
-        <#list .node["text"] as textNode><#if textNode["@type"]?has_content && (textNode["@type"]?split(",")?seq_contains(sri.getRenderMode()) || (sri.getRenderMode() == "qvt2" && textNode["@type"]?split(",")?seq_contains("qvt")))><#local textToUse = textNode></#if></#list>
+        <#list .node["text"] as textNode><#if textNode["@type"]?has_content && qapps2TextTypeMatches(textNode["@type"])><#local textToUse = textNode></#if></#list>
         <#if textToUse??><@renderText textNode=textToUse/></#if>
     </#if>
 </#macro>
 <#macro text>
-    <#if !.node["@type"]?has_content || (.node["@type"]?split(",")?seq_contains(sri.getRenderMode()) || (sri.getRenderMode() == "qvt2" && .node["@type"]?split(",")?seq_contains("qvt")))><@renderText textNode=.node/></#if>
+    <#if qapps2TextTypeMatches(.node["@type"]!)><@renderText textNode=.node/></#if>
 </#macro>
 <#macro renderText textNode>
     <#if textNode["@location"]?has_content>

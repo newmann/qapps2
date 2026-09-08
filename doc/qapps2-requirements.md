@@ -26,7 +26,7 @@ Vue 3 + Quasar UI 2 并行入口。不修改现有 `/qapps`、`/vapps`、`/apps`
 ## 2. 目标
 
 1. 新建本地组件 `qapps2`，与 qapps / vapps **入口、宏、vendor 独立**，业务屏树共用 `/apps`。
-2. 保留 `/qapps` 为默认入口（不改 `webroot.xml` 的 `default-item`）。
+2. 不改 `webroot.xml` 的 `default-item`。本组件 `MoquiConf.xml` 用 `default-subscreen="qapps2"` 覆盖根路径缺省入口；组件不存在时仍为 `/qapps`。`/qapps` 仍可直达。
 3. 浏览器地址：`/qapps2/...`。
 4. AJAX 基路径为 **`/apps`**（与 `/qapps`、`/vapps` 相同），新组件自动出现在菜单。
 5. 自有 render mode：`qvt2` / `qvue2` / `qjs2`，宏与 vendor 都在本组件内。
@@ -64,7 +64,7 @@ flowchart LR
 
 该独立的是壳、宏、vendor、render mode。屏树与 `/qapps` / `/vapps` 共用，这样 MarbleERP 等组件只需在自己的 `MoquiConf` 里挂 `apps.xml`。
 
-`qvt2` 宏把 `type="qvt"` 当作兼容回退，现有业务屏 XML 不用为 qapps2 加一份 `qvt2` 文本。
+宏把 `type="qvt"` / `qvue` / `qjs` 当作兼容回退，现有业务屏 XML 不用为 qapps2 加一份 `*2` 文本。壳在 `render-modes` 含 `qjs` 或 `js` 时也请求 `.qjs2`。
 
 独立屏树只在这两种情况再考虑：qapps2 要故意展示和 `/qapps` 不同的应用集；或要在不改原组件的前提下替换某模块整棵子树。
 
@@ -150,6 +150,7 @@ runtime/component/qapps2/
 
 ## 9. 验收
 
+- `/` 与登录后的根路径进入 `/qapps2/`（本组件安装时）。
 - `/qapps/tools/...` 与 `/apps/tools/...` 行为不变。
 - `/qapps2/tools/Service/ServiceRun` 请求 `/apps/tools/Service/ServiceRun.qvt2`。
 - `/qapps2/` 菜单与 `/qapps` 同级应用一致（Marble ERP、Tools 等）。

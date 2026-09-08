@@ -38,10 +38,15 @@ unminified split files.
 ## Conventions
 
 - Do not edit `webroot` or tools Assist
-- Mount only from this component's `MoquiConf.xml` (shell + static + render modes)
+- Mount only from this component's `MoquiConf.xml` (shell + static + render modes).
+  `default-subscreen="qapps2"` on webroot makes `/` and post-login root land
+  on `/qapps2` while this component is installed; without it, webroot stays
+  on `default-item="qapps"`. Do not edit `webroot.xml`.
 - AJAX screens use `.qvt2` / `.qvue2` / `.qjs2`
 - `confBasePath=/apps`, `confLinkBasePath=/qapps2` (same pattern as `/qapps`)
-- Treat `qvt` render-mode text as compatible when rendering `qvt2`
+- Treat `qvt` / `qvue` / `qjs` render-mode text as compatible when
+  rendering `qvt2` / `qvue2` / `qjs2`. `render-modes` listing `qjs` or
+  `js` also requests `.qjs2`
 - Chinese l10n lives in this component (`data/Qapps2L10nData.xml`). Do not create
   a `qapps2-zh_CN` sidecar. If a screen, FTL, JS, or qvue string needs
   `localize()`, change it here. Locale is `zh_CN`. Keep English originals.
@@ -50,6 +55,7 @@ unminified split files.
 
 ## Verify
 
+- Root: `http://localhost:8080/` should redirect into `/qapps2/`
 - Screen: `http://localhost:8080/qapps2/`
 - ServiceRun: `http://localhost:8080/qapps2/tools/Service/ServiceRun`
 - Existing `/qapps` and `/apps` must keep working

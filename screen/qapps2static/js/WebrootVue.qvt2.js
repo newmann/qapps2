@@ -259,8 +259,8 @@ moqui.loadComponent = function(urlInfo, callback, divId) {
 
     // look for JavaScript
     var isJsPath = (path.slice(-jsExt.length) === jsExt);
-    if (!isJsPath && urlInfo.renderModes && urlInfo.renderModes.indexOf(jsExt) >= 0) {
-        // screen supports js explicitly so do that
+    if (!isJsPath && urlInfo.renderModes && (urlInfo.renderModes.indexOf(jsExt) >= 0 || urlInfo.renderModes.indexOf('qjs') >= 0 || urlInfo.renderModes.indexOf('js') >= 0)) {
+        // screen supports js explicitly so do that (qjs/js fall back to qjs2)
         url += ('.' + jsExt);
         isJsPath = true;
     }
@@ -576,11 +576,16 @@ qapps2Register('m-dynamic-container', {
 qapps2Register('m-dynamic-dialog', {
     name: "mDynamicDialog",
     props: { id:{type:String}, url:{type:String,required:true}, color:String, buttonText:String, buttonClass:String, title:String, width:{type:String},
-        openDialog:{type:Boolean,'default':false}, dynamicParams:{type:Object,'default':null} },
+        openDialog:{type:Boolean,'default':false}, dynamicParams:{type:Object,'default':null},
+        linkType:{type:String,'default':'button'} },
     data: function() { return { curComponent:moqui.EmptyComponent, curUrl:"", isShown:false} },
+    computed: {
+        isAnchor: function() { return this.linkType === 'anchor'; }
+    },
     template:
     '<span>' +
-        '<q-btn dense outline no-caps icon="open_in_new" :label="buttonText" :color="color" :class="buttonClass" @click="isShown = true"></q-btn>' +
+        '<q-btn v-if="!isAnchor" dense outline no-caps icon="open_in_new" :label="buttonText" :color="color" :class="buttonClass" @click="isShown = true"></q-btn>' +
+        '<a v-else href="#" class="q-link" :class="buttonClass" @click.prevent="isShown = true">{{ buttonText }}</a>' +
         '<m-dialog ref="dialog" v-model="isShown" :id="id" :title="title" :color="color" :width="width"><component :is="curComponent"></component></m-dialog>' +
     '</span>',
     methods: {
