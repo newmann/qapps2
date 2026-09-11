@@ -1,0 +1,177 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+qapps2 copy of webroot Login. Overlay mounts this at /Login.
+-->
+<screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
+        default-menu-include="false" require-authentication="false" history="false"
+        screen-theme-type-enum-id="STT_INTERNAL_QUASAR2">
+
+    <parameter name="initialTab"/>
+    <parameter name="returnTo"/>
+    <parameter name="locale"/>
+
+    <transition name="login" require-session-token="false">
+        <actions>
+            <if condition="ec.web?.sessionAttributes?.moquiPreAuthcUsername"><then>
+                <set field="username" from="ec.web?.sessionAttributes?.moquiPreAuthcUsername"/>
+            </then><else>
+                <set field="loggedIn" from="ec.user.loginUser(username, password)"/>
+            </else></if>
+
+            <if condition="ec.web.sessionAttributes.moquiAuthcFactorRequired">
+                <if condition="code"><then>
+                    <service-call name="org.moqui.impl.UserServices.validate#ExternalUserAuthcCode"
+                            in-map="[code:code]" out-map="validateOut"/>
+                    <if condition="validateOut.verified"><then>
+                        <script>ec.user.internalLoginUser(validateOut.username)</script>
+                        <return/>
+                    </then><else>
+                        <message error="true" public="true">Authentication code is not valid</message>
+                    </else></if>
+                </then><else>
+                    <message error="true" public="true">Authentication code required for user ${username}</message>
+                </else></if>
+            </if>
+        </actions>
+        <default-response type="screen-last"/>
+        <error-response url="."/>
+    </transition>
+    <transition name="logout">
+        <actions><script>ec.user.logoutUser()</script></actions>
+        <default-response url="/"/>
+        <error-response url="."/>
+    </transition>
+    <transition name="removePreAuth">
+        <actions><script>
+            ec.web.sessionAttributes.remove("moquiPreAuthcUsername")
+            ec.web.sessionAttributes.remove("moquiAuthcFactorRequired")
+            ec.web.sessionAttributes.remove("moquiPasswordChangeRequired")
+            ec.web.sessionAttributes.remove("moquiExpiredCredentials")
+        </script></actions>
+        <default-response url="."/>
+    </transition>
+    <transition name="resetPassword">
+        <parameter name="username" from="ec.web?.sessionAttributes?.moquiPreAuthcUsername ?: username"/>
+        <service-call name="org.moqui.impl.UserServices.reset#Password" in-map="[username:username]"/>
+        <default-response url="."/>
+    </transition>
+    <transition name="changePassword">
+        <parameter name="username" from="ec.web?.sessionAttributes?.moquiPreAuthcUsername ?: username"/>
+        <service-call name="org.moqui.impl.UserServices.update#Password"/>
+        <actions>
+            <if condition="updateSuccessful">
+                <set field="loginSuccess" from="ec.user.internalLoginUser(username)"/></if>
+        </actions>
+        <conditional-response type="screen-last"><condition><expression>updateSuccessful</expression></condition></conditional-response>
+        <default-response url="." parameter-map="[initialTab:'#change']"/>
+    </transition>
+    <transition name="createInitialAdminAccount">
+        <service-call name="org.moqui.impl.UserServices.create#InitialAdminAccount"/>
+        <default-response url="."/>
+        <error-response url="."/>
+    </transition>
+    <transition name="sendOtp">
+        <service-call name="org.moqui.impl.UserServices.send#ExternalAuthcCode" in-map="[factorId:factorId]"/>
+        <default-response url="."/>
+    </transition>
+
+    <pre-actions><script><![CDATA[
+        if (ec.user.userId) sri.sendRedirectAndStopRender('/')
+        hideNav = "true"
+
+        String instancePurpose = System.getProperty("instance_purpose")
+        if (!instancePurpose || instancePurpose == 'production') {
+            html_scripts.add('/qapps2static/libs/vue3/vue.global.prod.js')
+            footer_scripts.add('/qapps2static/libs/quasar2/quasar.umd.prod.js')
+            footer_scripts.add('/qapps2static/libs/quasar2/lang/zh-CN.umd.prod.js')
+            footer_scripts.add('/qapps2static/js/LoginStarfield.js')
+            footer_scripts.add('/qapps2static/js/Login.js')
+        } else {
+            html_scripts.add('/qapps2static/libs/vue3/vue.global.js')
+            footer_scripts.add('/qapps2static/libs/quasar2/quasar.umd.prod.js')
+            footer_scripts.add('/qapps2static/libs/quasar2/lang/zh-CN.umd.prod.js')
+            footer_scripts.add('/qapps2static/js/LoginStarfield.js')
+            footer_scripts.add('/qapps2static/js/Login.js')
+        }
+    ]]></script></pre-actions>
+    <actions>
+        <script><![CDATA[
+            // Anonymous /Login: explicit ?locale= wins, otherwise the browser's
+            // primary language (Accept-Language / request.locales[0]), which
+            // follows the OS/browser UI language. Do not scan the whole list
+            // for "any zh", and do not let a stale session override the OS.
+            String locStr = (locale instanceof CharSequence && locale.toString().trim())
+                    ? locale.toString().trim() : null
+            boolean explicit = (locStr != null)
+            if (!locStr && ec.web?.request) {
+                def locales = ec.web.request.locales
+                if (locales?.hasMoreElements()) {
+                    locStr = locales.nextElement().toString()
+                }
+                if (!locStr) {
+                    String acceptLang = ec.web.request.getHeader('Accept-Language')
+                    if (acceptLang) {
+                        locStr = acceptLang.split(',')[0].trim().split(';')[0].trim()
+                    }
+                }
+            }
+            if (!locStr) locStr = ec.web?.sessionAttributes?.get('qapps2.login.locale') as String
+            if (locStr) {
+                locStr = locStr.replace('-', '_')
+                java.util.Locale chosen
+                if (locStr.toLowerCase().startsWith('zh')) {
+                    chosen = new java.util.Locale('zh', 'CN')
+                    locStr = 'zh_CN'
+                } else {
+                    String[] parts = locStr.split('_', 2)
+                    chosen = parts.length > 1 ? new java.util.Locale(parts[0], parts[1]) : new java.util.Locale(parts[0])
+                }
+                ec.user.setLocale(chosen)
+                if (explicit) ec.web.sessionAttributes.put('qapps2.login.locale', locStr)
+                else ec.web.sessionAttributes.remove('qapps2.login.locale')
+            }
+        ]]></script>
+        <if condition="returnTo"><then>
+            <script>ec.web.session.setAttribute('moqui.screen.last.path', returnTo)</script>
+        </then><else>
+            <if condition="!ec.web.session.getAttribute('moqui.screen.last.path')">
+                <set field="referrer" from="ec.web.request.getHeader('Referer')"/>
+                <if condition="referrer"><script>ec.web.session.setAttribute('moqui.screen.last.path', referrer)</script></if>
+            </if>
+        </else></if>
+
+        <set field="passwordChangeRequired" from="ec.web.sessionAttributes.moquiPasswordChangeRequired ?: 'false'" type="Boolean"/>
+        <set field="expiredCredentials" from="ec.web.sessionAttributes.moquiExpiredCredentials ?: 'false'" type="Boolean"/>
+        <if condition="passwordChangeRequired || expiredCredentials">
+            <set field="initialTab" value="#change"/></if>
+        <if condition="initialTab &amp;&amp; !initialTab.startsWith('#')"><set field="initialTab" from="'#' + initialTab"/></if>
+
+        <set field="secondFactorRequired" from="false"/>
+        <if condition="ec.web.sessionAttributes.moquiPreAuthcUsername"><then>
+            <set field="username" from="ec.web.sessionAttributes.moquiPreAuthcUsername"/>
+            <service-call name="org.moqui.impl.UserServices.get#ExternalUserAuthcFactorInfo" out-map="context"/>
+        </then><else>
+            <set field="username" from="ec.web.errorParameters?.username ?: ''"/>
+        </else></if>
+
+        <set field="passwordNode" from="ec.ecfi.confXmlRoot.first('user-facade').first('password')"/>
+        <set field="minLength" from="passwordNode.attribute('min-length')" default-value="8" type="Integer"/>
+        <set field="minDigits" from="passwordNode.attribute('min-digits')" default-value="1" type="Integer"/>
+        <set field="minOthers" from="passwordNode.attribute('min-others')" default-value="1" type="Integer"/>
+
+        <set field="userAccountCount" from="ec.entity.find('moqui.security.UserAccount').disableAuthz().count()"/>
+        <set field="needsSetup" from="userAccountCount &lt;= 1"/>
+        <set field="showTestLogin" from="ec.entity.find('moqui.security.UserAccount').condition('userId', 'EX_JOHN_DOE')
+                    .condition('currentPassword', '16ac58bbfa332c1c55bd98b53e60720bfa90d394').disableAuthz().count() &gt; 0"/>
+        <service-call name="qapps2.LoginServices.get#LoginBackground" out-map="loginBg"/>
+    </actions>
+    <widgets>
+        <render-mode>
+            <text type="html" template="true" location="component://qapps2/screen/includes/Login.ftl"/>
+        </render-mode>
+    </widgets>
+</screen>

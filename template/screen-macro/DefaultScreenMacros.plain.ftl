@@ -14,7 +14,7 @@ along with this software (see the LICENSE.md file). If not, see
 <#include "DefaultScreenMacros.any.ftl"/>
 <#-- for 'plain' rendering most elements ignored, meant to defer to render-mode.text sections for js, vue, etc that have zero widget rendering -->
 <#macro @element></#macro>
-<#macro screen><#recurse></#macro>
+<#macro screen><@qapps2ApplyInheritedServerStaticHeader/><#recurse></#macro>
 <#macro widgets><#recurse></#macro>
 <#macro "fail-widgets"><#recurse></#macro>
 

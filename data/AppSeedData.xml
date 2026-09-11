@@ -7,6 +7,9 @@
     <moqui.security.ArtifactGroupMember artifactGroupId="QAPPS2_APP"
             artifactTypeEnumId="AT_XML_SCREEN" inheritAuthz="Y"
             artifactName="component://qapps2/screen/qapps2static.xml"/>
+    <moqui.security.ArtifactGroupMember artifactGroupId="QAPPS2_APP"
+            artifactTypeEnumId="AT_XML_SCREEN" inheritAuthz="Y"
+            artifactName="component://qapps2/screen/Login.xml"/>
     <moqui.security.ArtifactAuthz artifactAuthzId="QAPPS2_AUTHZ_ALL"
             userGroupId="ADMIN" artifactGroupId="QAPPS2_APP"
             authzTypeEnumId="AUTHZT_ALWAYS" authzActionEnumId="AUTHZA_ALL"/>

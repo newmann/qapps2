@@ -1,13 +1,14 @@
 <!-- This software is in the public domain under CC0 1.0 Universal plus a Grant of Patent License. -->
 <template>
-    <q-input v-if="searchPath" dark dense name="queryString" v-model="queryString" :size="inputSize" @focus="inputSize=20" @blur="inputSize=8" @keydown.enter.prevent="goSearch()">
-        <template v-slot:append><q-btn dark dense flat type="submit" name="submitButton" icon="search" @click="goSearch()"></q-btn></template>
+    <q-input v-if="searchPath" class="qapps2-quick-search" :dark="$q.dark.isActive" dense outlined name="queryString"
+             v-model="queryString" @keydown.enter.prevent="goSearch()">
+        <template v-slot:append><q-btn dense flat type="submit" name="submitButton" icon="search" @click="goSearch()"></q-btn></template>
         <q-tooltip>{{l10n('Search or Lookup by ID')}}</q-tooltip>
     </q-input>
 </template>
 <script>
 module.exports = {
-    data: function() { return { queryString:'', inputSize:8 } },
+    data: function() { return { queryString:'' } },
     methods: {
         l10n: function(key) { return (window.moqui && moqui.l10n) ? moqui.l10n(key) : key; },
         goSearch: function() {
@@ -17,7 +18,6 @@ module.exports = {
     },
     computed: {
         searchPath: function() {
-            // return "/apps/marble/QuickSearch";
             var navMenuList = this.$root.navMenuList;
             if (!navMenuList || navMenuList.length < 2) return null;
             var curAppSubscreens = navMenuList[1].subscreens;

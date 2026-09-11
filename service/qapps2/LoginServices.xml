@@ -1,0 +1,167 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+qapps2 login background: local login-bg/ files, else Wikimedia Commons POTD.
+-->
+<services xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/service-definition-3.xsd">
+
+    <service verb="get" noun="LoginBackground" authenticate="false">
+        <description>Login page background: local qapps2static/login-bg files, else Commons Picture of the Day</description>
+        <out-parameters>
+            <parameter name="imageUrl"/>
+            <parameter name="title"/>
+            <parameter name="artist"/>
+            <parameter name="license"/>
+            <parameter name="licenseUrl"/>
+            <parameter name="filePage"/>
+            <parameter name="source"/>
+            <parameter name="credit"/>
+        </out-parameters>
+        <actions>
+            <script><![CDATA[
+                import org.moqui.util.RestClient
+
+                def plain = { String s ->
+                    if (!s) return ''
+                    return s.replaceAll(/<[^>]+>/, '')
+                            .replaceAll('&nbsp;', ' ').replaceAll('&amp;', '&')
+                            .replaceAll('&quot;', '"').replaceAll('&#039;', "'")
+                            .replaceAll('&lt;', '<').replaceAll('&gt;', '>')
+                            .replaceAll(/\s+/, ' ').trim()
+                }
+                def licenseOk = { String lic ->
+                    String s = (lic ?: '').toLowerCase().replaceAll(/[\s_]+/, '-')
+                    return s.contains('cc-by') || s.contains('cc0') || s.startsWith('pd') ||
+                            s.contains('public-domain') || s.contains('publicdomain')
+                }
+                def applyBg = { Map bg ->
+                    if (!bg) return
+                    context.imageUrl = bg.imageUrl
+                    context.title = bg.title
+                    context.artist = bg.artist
+                    context.license = bg.license
+                    context.licenseUrl = bg.licenseUrl
+                    context.filePage = bg.filePage
+                    context.source = bg.source
+                    context.credit = bg.credit
+                }
+
+                def localDir = ec.resource.getLocationReference(
+                        'component://qapps2/screen/qapps2static/login-bg')
+                if (localDir != null && localDir.supportsExists() && localDir.getExists() &&
+                        localDir.supportsDirectory() && localDir.isDirectory()) {
+                    def files = (localDir.getDirectoryEntries() ?: []).findAll { rr ->
+                        if (rr == null || !rr.isFile()) return false
+                        String n = (rr.getFileName() ?: '').toLowerCase()
+                        return n.endsWith('.jpg') || n.endsWith('.jpeg') ||
+                                n.endsWith('.png') || n.endsWith('.webp')
+                    }.sort { a, b -> (a.getFileName() ?: '') <=> (b.getFileName() ?: '') }
+                    if (files) {
+                        int day = Calendar.getInstance().get(Calendar.DAY_OF_YEAR)
+                        def chosen = files[day % files.size()]
+                        String name = chosen.getFileName()
+                        applyBg([
+                                imageUrl: '/qapps2static/login-bg/' + name,
+                                title: name,
+                                artist: '',
+                                license: '',
+                                licenseUrl: '',
+                                filePage: '',
+                                source: 'local',
+                                credit: 'Login background'
+                        ])
+                        return
+                    }
+                }
+
+                String locTag = (ec.user.locale?.toLanguageTag() ?: 'en').toLowerCase()
+                String wikiLang = locTag.startsWith('zh') ? 'zh' : 'en'
+                String today = new java.text.SimpleDateFormat('yyyy-MM-dd').format(new Date())
+                String cacheKey = today + ':' + wikiLang
+                def cache = ec.cache.getLocalCache('qapps2.login.bg')
+                def cached = cache.get(cacheKey)
+                if (cached instanceof Map) {
+                    if (cached.imageUrl) { applyBg(cached); return }
+                    Long checkedAt = cached.checkedAt as Long
+                    if (cached.miss && checkedAt != null &&
+                            (System.currentTimeMillis() - checkedAt) < 15L * 60L * 1000L) {
+                        return
+                    }
+                }
+
+                try {
+                    String iiprop = URLEncoder.encode('url|size|mime|extmetadata', 'UTF-8')
+                    String titles = URLEncoder.encode('Template:Potd/' + today, 'UTF-8')
+                    String api = 'https://commons.wikimedia.org/w/api.php?action=query&format=json&formatversion=2' +
+                            '&generator=images&gimlimit=8&prop=imageinfo' +
+                            '&iiprop=' + iiprop + '&iiurlwidth=1920' +
+                            '&iiextmetadatalanguage=' + URLEncoder.encode(wikiLang, 'UTF-8') +
+                            '&titles=' + titles
+                    def resp = new RestClient().uri(api).timeout(4)
+                            .acceptContentType('application/json')
+                            .addHeader('User-Agent', 'Moqui-qapps2-login/1.0 (https://www.moqui.org/; login background)')
+                            .addHeader('Api-User-Agent', 'Moqui-qapps2-login/1.0 (https://www.moqui.org/; login background)')
+                            .call()
+                    if (resp.getStatusCode() < 200 || resp.getStatusCode() >= 300) {
+                        cache.put(cacheKey, [miss: true, checkedAt: System.currentTimeMillis()])
+                        return
+                    }
+                    def body = resp.jsonObject()
+                    def pages = body?.query?.pages
+                    if (!(pages instanceof List) || !pages) {
+                        cache.put(cacheKey, [miss: true, checkedAt: System.currentTimeMillis()])
+                        return
+                    }
+                    def best = null
+                    int bestW = -1
+                    for (def page : pages) {
+                        def info = (page?.imageinfo instanceof List && page.imageinfo) ? page.imageinfo[0] : null
+                        if (!info) continue
+                        String mime = (info.mime ?: '').toString().toLowerCase()
+                        if (!mime.startsWith('image/') || mime.contains('svg')) continue
+                        def meta = info.extmetadata ?: [:]
+                        String lic = (meta.License?.value ?: meta.LicenseShortName?.value ?: '').toString()
+                        if (!licenseOk(lic) && !licenseOk((meta.UsageTerms?.value ?: '').toString())) continue
+                        int w = (info.thumbwidth ?: info.width ?: 0) as int
+                        if (w > bestW) { bestW = w; best = [page: page, info: info, meta: meta] }
+                    }
+                    if (best == null) {
+                        cache.put(cacheKey, [miss: true, checkedAt: System.currentTimeMillis()])
+                        return
+                    }
+                    def info = best.info
+                    def meta = best.meta
+                    String url = (info.thumburl ?: info.url ?: '').toString()
+                    if (!url) {
+                        cache.put(cacheKey, [miss: true, checkedAt: System.currentTimeMillis()])
+                        return
+                    }
+                    String artistName = plain((meta.Artist?.value ?: '').toString())
+                    String licName = plain((meta.LicenseShortName?.value ?: meta.License?.value ?: '').toString())
+                    String fileTitle = (best.page.title ?: '').toString()
+                    String creditLine = [artistName, licName].findAll { it }.join(' / ')
+                    if (!creditLine) creditLine = fileTitle ?: 'Wikimedia Commons'
+                    Map bg = [
+                            imageUrl: url,
+                            title: fileTitle,
+                            artist: artistName,
+                            license: licName,
+                            licenseUrl: (meta.LicenseUrl?.value ?: '').toString(),
+                            filePage: (info.descriptionurl ?: '').toString(),
+                            source: 'wikimedia',
+                            credit: creditLine
+                    ]
+                    cache.put(cacheKey, bg)
+                    applyBg(bg)
+                } catch (Throwable t) {
+                    String cause = t.cause?.message ?: ''
+                    ec.logger.warn("qapps2 login background Wikimedia fetch failed: ${t.message}${cause ? ' | ' + cause : ''}")
+                    cache.put(cacheKey, [miss: true, checkedAt: System.currentTimeMillis()])
+                }
+            ]]></script>
+        </actions>
+    </service>
+</services>

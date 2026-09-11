@@ -26,6 +26,34 @@ along with this software (see the LICENSE.md file). If not, see
     <#if mode == "qjs2" && types?seq_contains("qjs")><#return true></#if>
     <#return false>
 </#function>
+<#-- original server-static="vuet,qvt" (and qvue/qjs) counts as static under qvt2/qvue2/qjs2 -->
+<#function qapps2IsScreenServerStatic>
+    <#local sd = sri.getActiveScreenDef()>
+    <#local mode = sri.getRenderMode()!>
+    <#if sd.isServerStatic(mode)><#return true></#if>
+    <#if mode == "qvt2"><#return sd.isServerStatic("qvt")></#if>
+    <#if mode == "qvue2"><#return sd.isServerStatic("qvue")></#if>
+    <#if mode == "qjs2"><#return sd.isServerStatic("qjs")></#if>
+    <#return false>
+</#function>
+<#function qapps2IsFormServerStatic formInstance>
+    <#local mode = sri.getRenderMode()!>
+    <#if formInstance.isServerStatic(mode)><#return true></#if>
+    <#if mode == "qvt2"><#return formInstance.isServerStatic("qvt")></#if>
+    <#if mode == "qvue2"><#return formInstance.isServerStatic("qvue")></#if>
+    <#if mode == "qjs2"><#return formInstance.isServerStatic("qjs")></#if>
+    <#return false>
+</#function>
+<#macro qapps2ApplyInheritedServerStaticHeader>
+    <#if !ec.web??><#return></#if>
+    <#local sd = sri.getActiveScreenDef()>
+    <#local target = (sri.screenUrlInfo.targetScreen)!>
+    <#if target?? && sd.location != target.location><#return></#if>
+    <#if qapps2IsScreenServerStatic() && !sd.isServerStatic(sri.getRenderMode())>
+        <#local resp = ec.web.getResponse()!>
+        <#if resp??><#local ignored = resp.setHeader("Cache-Control", "max-age=86400, must-revalidate, public")!></#if>
+    </#if>
+</#macro>
 <#macro "render-mode">
     <#if .node["text"]?has_content>
         <#list .node["text"] as textNode><#if !textNode["@type"]?has_content || textNode["@type"] == "any"><#local textToUse = textNode/></#if></#list>

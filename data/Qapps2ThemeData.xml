@@ -34,9 +34,19 @@
             resourceValue="/qapps2static/lib/MyAccountNav.qvue"/>
 
     <moqui.screen.ScreenThemeResource screenThemeId="DEFAULT_QUASAR2" sequenceNum="200" resourceTypeEnumId="STRT_FOOTER_ITEM">
-        <resourceValue><![CDATA[<div class="col-md-6 text-center q-px-md"><a class="text-grey-1" href="https://www.moqui.org/" target="_blank">${ec.resource.expand('Built on Moqui $\{ec.factory.moquiVersion}', '')} · qapps2</a></div>]]></resourceValue>
+        <resourceValue><![CDATA[<div class="col-md-6 text-center q-px-md"><a href="https://www.moqui.org/" target="_blank">${ec.resource.expand('Built on Moqui $\{ec.factory.moquiVersion}', '')}</a></div>]]></resourceValue>
     </moqui.screen.ScreenThemeResource>
     <moqui.screen.ScreenThemeResource screenThemeId="DEFAULT_QUASAR2" sequenceNum="201" resourceTypeEnumId="STRT_FOOTER_ITEM">
-        <resourceValue><![CDATA[<div class="col-md-6 text-center q-px-md"><a class="text-grey-1" href="/qapps2/ScreenTree">${ec.l10n.localize('Site Map')}</a></div>]]></resourceValue>
+        <resourceValue><![CDATA[<div class="col-md-6 text-center q-px-md"><a href="/qapps2/ScreenTree">${ec.l10n.localize('Site Map')}</a></div>]]></resourceValue>
     </moqui.screen.ScreenThemeResource>
+
+    <!-- Match English originals first (macros look up before localize), then Chinese fallbacks. -->
+    <moqui.screen.ScreenThemeIcon screenThemeId="DEFAULT_QUASAR2" textPattern=".*(Save|Update|保存|更新).*" iconClass="fa fa-save"/>
+    <moqui.screen.ScreenThemeIcon screenThemeId="DEFAULT_QUASAR2" textPattern=".*(Create|Add|New|创建|新增|添加).*" iconClass="fa fa-plus"/>
+    <moqui.screen.ScreenThemeIcon screenThemeId="DEFAULT_QUASAR2" textPattern=".*(Delete|Remove|删除|移除).*" iconClass="fa fa-trash"/>
+    <moqui.screen.ScreenThemeIcon screenThemeId="DEFAULT_QUASAR2" textPattern=".*(Edit|编辑).*" iconClass="fa fa-pencil"/>
+    <moqui.screen.ScreenThemeIcon screenThemeId="DEFAULT_QUASAR2" textPattern=".*(Find|Search|Query|查找|查询|搜索).*" iconClass="fa fa-search"/>
+    <moqui.screen.ScreenThemeIcon screenThemeId="DEFAULT_QUASAR2" textPattern=".*(Cancel|取消).*" iconClass="fa fa-times"/>
+    <moqui.screen.ScreenThemeIcon screenThemeId="DEFAULT_QUASAR2" textPattern=".*(Clear|清除|清空).*" iconClass="fa fa-eraser"/>
+    <moqui.screen.ScreenThemeIcon screenThemeId="DEFAULT_QUASAR2" textPattern=".*(View|查看).*" iconClass="fa fa-eye"/>
 </entity-facade-xml>

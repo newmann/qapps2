@@ -18,23 +18,28 @@ qapps2 Vue 3 + Quasar 2 shell. Independent copy of WebrootVue.qvt.ftl.
     <#list accountCompList! as accountCompUrl><input type="hidden" class="confAccountPluginUrl" value="${accountCompUrl}"></#list>
 
     <q-layout view="hHh LpR fFf">
-        <q-header reveal bordered id="top" :class="$q.dark.isActive ? 'bg-grey-10 text-white' : 'bg-grey-9 text-white'"><q-toolbar style="font-size:15px;">
+        <q-header bordered id="top" class="qapps2-header"><q-toolbar class="qapps2-toolbar">
             <q-btn dense flat icon="menu" @click="toggleLeftOpen()"></q-btn>
 
             <#assign headerLogoList = sri.getThemeValues("STRT_HEADER_LOGO")>
             <#if headerLogoList?has_content>
-                <m-link href="/apps"><div class="q-mx-md q-mt-sm">
-                    <img src="${sri.buildUrl(headerLogoList?first).getUrl()}" alt="${ec.l10n.localize("Home")}" height="32">
+                <m-link href="/qapps2"><div class="q-mx-sm q-mt-sm">
+                    <img src="${sri.buildUrl(headerLogoList?first).getUrl()}" alt="${ec.l10n.localize("Home")}" height="28">
                 </div></m-link>
             </#if>
             <#assign headerTitleList = sri.getThemeValues("STRT_HEADER_TITLE")>
             <#if headerTitleList?has_content>
-            <q-toolbar-title>${ec.resource.expand(headerTitleList?first, "")}</q-toolbar-title>
+            <q-toolbar-title shrink>${ec.resource.expand(headerTitleList?first, "")}</q-toolbar-title>
+            </#if>
+            <#assign instancePurpose = Static["java.lang.System"].getProperty("instance_purpose")!"production">
+            <#if instancePurpose == "dev" || instancePurpose == "test">
+            <q-badge class="qapps2-dev-badge gt-xs" color="<#if instancePurpose == "test">positive<#else>warning</#if>" outline>${instancePurpose?upper_case}</q-badge>
             </#if>
 
+            <div class="qapps2-crumbs gt-xs q-ml-md">
             <template v-for="(navMenuItem, menuIndex) in navMenuList"><template v-if="menuIndex < (navMenuList.length - 1)">
-                <m-link v-if="navMenuItem.hasTabMenu" :href="getNavHref(menuIndex)" class="gt-xs">{{navMenuItem.title}}</m-link>
-                <div v-else-if="navMenuItem.subscreens && navMenuItem.subscreens.length" class="cursor-pointer gt-xs">
+                <m-link v-if="navMenuItem.hasTabMenu" :href="getNavHref(menuIndex)" class="qapps2-crumb">{{navMenuItem.title}}</m-link>
+                <div v-else-if="navMenuItem.subscreens && navMenuItem.subscreens.length" class="cursor-pointer qapps2-crumb">
                     {{navMenuItem.title}}
                     <q-menu anchor="bottom left" self="top left"><q-list dense style="min-width: 200px">
                         <q-item v-for="subscreen in navMenuItem.subscreens" :key="subscreen.name" :class="{'bg-primary':subscreen.active, 'text-white':subscreen.active}" clickable v-close-popup><q-item-section>
@@ -49,11 +54,12 @@ qapps2 Vue 3 + Quasar 2 shell. Independent copy of WebrootVue.qvt.ftl.
                         </q-item-section></q-item>
                     </q-list></q-menu>
                 </div>
-                <m-link v-else :href="getNavHref(menuIndex)" class="gt-xs">{{navMenuItem.title}}</m-link>
+                <m-link v-else :href="getNavHref(menuIndex)" class="qapps2-crumb">{{navMenuItem.title}}</m-link>
 
-                <q-icon size="1.5em" name="chevron_right" color="grey" class="gt-xs"></q-icon>
+                <q-icon size="1.2em" name="chevron_right" class="qapps2-crumb-sep" color="grey"></q-icon>
             </template></template>
-            <m-link v-if="navMenuList.length > 0" :href="getNavHref(navMenuList.length - 1)" class="gt-xs">{{navMenuList[navMenuList.length - 1].title}}</m-link>
+            <m-link v-if="navMenuList.length > 0" :href="getNavHref(navMenuList.length - 1)" class="qapps2-crumb text-strong">{{navMenuList[navMenuList.length - 1].title}}</m-link>
+            </div>
 
             <q-space></q-space>
 
@@ -124,16 +130,16 @@ qapps2 Vue 3 + Quasar 2 shell. Independent copy of WebrootVue.qvt.ftl.
             </q-btn>
         </q-toolbar></q-header>
 
-        <q-drawer v-model="leftOpen" side="left" bordered>
+        <q-drawer v-model="leftOpen" side="left" bordered class="qapps2-drawer">
             <q-btn dense flat icon="menu" @click="toggleLeftOpen()" class="lt-sm"></q-btn>
             <q-list dense padding><m-menu-nav-item :menu-index="0"></m-menu-nav-item></q-list>
         </q-drawer>
 
-        <q-page-container class="q-ma-sm"><q-page>
+        <q-page-container class="qapps2-page-wrap"><q-page>
             <m-subscreens-active></m-subscreens-active>
         </q-page></q-page-container>
 
-        <q-footer reveal bordered class="bg-grey-9 text-white row q-pa-xs" id="footer">
+        <q-footer reveal bordered class="qapps2-footer row q-px-md q-py-xs" id="footer">
             <#assign footerItemList = sri.getThemeValues("STRT_FOOTER_ITEM")>
             <#list footerItemList! as footerItem>
                 <#assign footerItemTemplate = footerItem?interpret>
@@ -171,7 +177,14 @@ qapps2 Vue 3 + Quasar 2 shell. Independent copy of WebrootVue.qvt.ftl.
 <script>
     window.quasarConfig = {
         brand: {
-            info:'#1e7b8e'
+            primary: '#1677ff',
+            secondary: '#13c2c2',
+            accent: '#722ed1',
+            dark: '#1f1f1f',
+            positive: '#52c41a',
+            negative: '#ff4d4f',
+            info: '#1677ff',
+            warning: '#faad14'
         },
         notify: { progress:true, closeBtn:'X', position:'top-right' },
         loadingBar: { color:'primary' }
@@ -229,6 +242,13 @@ qapps2 Vue 3 + Quasar 2 shell. Independent copy of WebrootVue.qvt.ftl.
         Notifications: '${ec.l10n.localize("Notifications")?js_string}',
         Messages: '${ec.l10n.localize("Messages")?js_string}',
         'Events This Week': '${ec.l10n.localize("Events This Week")?js_string}',
-        'Open Tasks': '${ec.l10n.localize("Open Tasks")?js_string}'
+        'Open Tasks': '${ec.l10n.localize("Open Tasks")?js_string}',
+        Export: '${ec.l10n.localize("Export")?js_string}',
+        'Saved Finds': '${ec.l10n.localize("Saved Finds")?js_string}',
+        'Clear Current Find': '${ec.l10n.localize("Clear Current Find")?js_string}',
+        CSV: '${ec.l10n.localize("CSV")?js_string}',
+        XLS: '${ec.l10n.localize("XLS")?js_string}',
+        Text: '${ec.l10n.localize("Text")?js_string}',
+        PDF: '${ec.l10n.localize("PDF")?js_string}'
     };
 </script>

@@ -497,7 +497,7 @@ qapps2Register('m-dialog', {
                 '<h5 class="q-pl-sm non-selectable">{{title}}</h5><q-space></q-space>' +
                 '<q-btn icon="close" flat round dense v-close-popup></q-btn>' +
             '</q-card-actions><q-separator></q-separator>' +
-            '<q-card-section ref="dialogBody"><slot></slot></q-card-section>' +
+            '<q-card-section ref="dialogBody" class="m-dialog-body"><slot></slot></q-card-section>' +
         '</q-card>' +
     '</q-dialog>',
     methods: {
@@ -1327,7 +1327,7 @@ qapps2Register('m-form-list', {
             '<tr class="form-list-nav-row"><th :colspan="columns?columns:\'100\'"><q-bar>' +
                 '<q-btn-dropdown v-if="savedFinds && savedFindList.length" dense outline no-caps icon="bookmark" :label="activeFindLabel">' +
                     '<q-list dense>' +
-                        '<q-item clickable v-close-popup @click="clearSavedFind"><q-item-section>Clear Current Find</q-item-section></q-item>' +
+                        '<q-item clickable v-close-popup @click="clearSavedFind"><q-item-section>{{clearFindLabel}}</q-item-section></q-item>' +
                         '<q-item v-for="findItem in savedFindList" :key="findItem.id" clickable v-close-popup @click="applySavedFind(findItem)">' +
                             '<q-item-section>{{findItem.description}}</q-item-section></q-item>' +
                     '</q-list></q-btn-dropdown>' +
@@ -1337,7 +1337,10 @@ qapps2Register('m-form-list', {
                 '<q-btn-dropdown v-if="allButton" dense outline no-caps :label="pageSizeLabel">' +
                     '<q-list dense><q-item v-for="sizeOpt in pageSizeOptions" :key="sizeOpt" clickable v-close-popup @click="setPageSize(sizeOpt)">' +
                         '<q-item-section>{{sizeOpt}}</q-item-section></q-item></q-list></q-btn-dropdown>' +
-                '<q-btn v-if="csvButton" type="a" :href="csvUrl" dense outline no-caps label="CSV"></q-btn>' +
+                '<q-btn-dropdown v-if="csvButton || textButton || pdfButton" dense outline no-caps icon="file_download" :label="exportLabel">' +
+                    '<q-list dense>' +
+                        '<q-item v-if="csvButton" clickable tag="a" :href="csvUrl" v-close-popup><q-item-section>{{csvLabel}}</q-item-section></q-item>' +
+                    '</q-list></q-btn-dropdown>' +
                 '<slot name="navExtra"></slot>' +
             '</q-bar></th></tr>' +
             '<slot name="header" :search="searchObj" :set-order-by="setOrderBy" :apply-search="applySearch"></slot>' +
@@ -1361,8 +1364,11 @@ qapps2Register('m-form-list', {
                     if (String(this.savedFindList[i].id) === String(findId)) return this.savedFindList[i].description;
                 }
             }
-            return 'Saved Finds';
-        }
+            return moqui.l10n('Saved Finds');
+        },
+        exportLabel: function() { return moqui.l10n('Export'); },
+        csvLabel: function() { return moqui.l10n('CSV'); },
+        clearFindLabel: function() { return moqui.l10n('Clear Current Find'); }
     },
     methods: {
         currentSearch: function() {
@@ -2490,8 +2496,10 @@ var qapps2RootOptions = {
         },
         switchDarkLight: function() {
             this.$q.dark.toggle();
+            var darkVal = this.$q.dark.isActive ? 'true' : 'false';
+            try { localStorage.setItem('qapps2-dark', darkVal); } catch (e) {}
             $.ajax({ type:'POST', url:(this.appRootPath + '/apps/setPreference'), error:moqui.handleAjaxError,
-                data:{ moquiSessionToken:this.moquiSessionToken, preferenceKey:'QUASAR_DARK', preferenceValue:(this.$q.dark.isActive ? 'true' : 'false') } });
+                data:{ moquiSessionToken:this.moquiSessionToken, preferenceKey:'QUASAR_DARK', preferenceValue:darkVal } });
         },
         toggleLeftOpen: function() {
             this.leftOpen = !this.leftOpen;
@@ -2753,7 +2761,16 @@ var qapps2RootOptions = {
         if (moqui.localeMap[this.locale]) this.locale = moqui.localeMap[this.locale];
         this.leftOpen = conf.leftOpen === 'true';
 
-        this.$q.dark.set(conf.darkMode === "true");
+        var darkMode = conf.darkMode === "true";
+        try {
+            var storedDark = localStorage.getItem('qapps2-dark');
+            if (storedDark === 'true' || storedDark === 'false') darkMode = storedDark === 'true';
+        } catch (e) {}
+        this.$q.dark.set(darkMode);
+        if (darkMode !== (conf.darkMode === "true")) {
+            $.ajax({ type:'POST', url:(this.appRootPath + '/apps/setPreference'), error:moqui.handleAjaxError,
+                data:{ moquiSessionToken:this.moquiSessionToken, preferenceKey:'QUASAR_DARK', preferenceValue:darkMode ? 'true' : 'false' } });
+        }
 
         this.notificationClient = new moqui.NotificationClient((location.protocol === 'https:' ? 'wss://' : 'ws://') + this.appHost + this.appRootPath + "/notws");
         // open BroadcastChannel to share session token between tabs/windows on the same domain (see https://developer.mozilla.org/en-US/docs/Web/API/Broadcast_Channel_API)
@@ -2767,6 +2784,7 @@ var qapps2RootOptions = {
         // Vue 3 $el is a fragment/first child, not #apps-root; the container keeps display:none from the FTL.
         var rootEl = document.getElementById('apps-root');
         if (rootEl) rootEl.style.display = 'initial';
+        qapps2ApplyLocale(this.locale || (moqui.qapps2Conf && moqui.qapps2Conf.locale));
         // load the current screen
         this.setUrl(window.location.pathname + window.location.search);
         // init the NotificationClient and register 'displayNotify' as the default listener
@@ -2867,12 +2885,22 @@ function qapps2ReadConf(rootEl) {
 }
 function qapps2ApplyLocale(locale) {
     if (!locale) return;
+    var htmlLang = String(locale).replace(/_/g, '-');
+    if (htmlLang.toLowerCase().indexOf('zh') === 0) htmlLang = 'zh-CN';
+    document.documentElement.lang = htmlLang;
     var mapped = (moqui.localeMap && moqui.localeMap[locale]) ? moqui.localeMap[locale] : locale;
     if (window.moment && moment.locale) moment.locale(mapped);
     var QLang = window.Quasar && (Quasar.Lang || Quasar.lang);
     if (QLang && QLang.set) {
         var pack = QLang.zhCN || QLang['zh-CN'];
-        if (pack && String(locale).indexOf('zh') === 0) QLang.set(pack);
+        if (pack && String(locale).indexOf('zh') === 0) {
+            if (pack.label) {
+                pack.label.expand = function(e) { return e ? ('展开 "' + e + '"') : '展开'; };
+                pack.label.collapse = function(e) { return e ? ('折叠 "' + e + '"') : '折叠'; };
+            }
+            if (pack.date) pack.date.format24h = true;
+            QLang.set(pack);
+        }
     }
 }
 function qapps2Boot() {
@@ -2890,6 +2918,7 @@ function qapps2Boot() {
     });
     Object.keys(qapps2Components).forEach(function(name) { app.component(name, qapps2Components[name]); });
     app.use(Quasar, { config: window.quasarConfig || {} });
+    qapps2ApplyLocale(moqui.qapps2Conf.locale);
     moqui.qapps2App = app;
     moqui.webrootVue = app.mount('#apps-root');
 }

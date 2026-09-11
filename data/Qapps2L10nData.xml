@@ -21,7 +21,7 @@ Shared originals use the same Chinese as those sidecars.
     <moqui.basic.LocalizedMessage original="Click to edit" locale="zh_CN" localized="点击编辑"/>
     <moqui.basic.LocalizedMessage original="Cancel" locale="zh_CN" localized="取消"/>
     <moqui.basic.LocalizedMessage original="Save" locale="zh_CN" localized="保存"/>
-    <moqui.basic.LocalizedMessage original="Find" locale="zh_CN" localized="查找"/>
+    <moqui.basic.LocalizedMessage original="Find" locale="zh_CN" localized="查询"/>
     <moqui.basic.LocalizedMessage original="Update" locale="zh_CN" localized="更新"/>
     <moqui.basic.LocalizedMessage original="Delete" locale="zh_CN" localized="删除"/>
     <moqui.basic.LocalizedMessage original="Description" locale="zh_CN" localized="描述"/>
@@ -32,28 +32,29 @@ Shared originals use the same Chinese as those sidecars.
     <moqui.basic.LocalizedMessage original="Required" locale="zh_CN" localized="必填"/>
 
     <!-- form-list chrome -->
-    <moqui.basic.LocalizedMessage original="Select Find" locale="zh_CN" localized="选择查找"/>
-    <moqui.basic.LocalizedMessage original="Clear Current Find" locale="zh_CN" localized="清空当前查找"/>
-    <moqui.basic.LocalizedMessage original="Find Options" locale="zh_CN" localized="查找选项"/>
-    <moqui.basic.LocalizedMessage original="(Asc)" locale="zh_CN" localized="(升)"/>
-    <moqui.basic.LocalizedMessage original="(Desc)" locale="zh_CN" localized="(降)"/>
+    <moqui.basic.LocalizedMessage original="Select Find" locale="zh_CN" localized="已存查询"/>
+    <moqui.basic.LocalizedMessage original="Clear Current Find" locale="zh_CN" localized="清空当前查询"/>
+    <moqui.basic.LocalizedMessage original="Find Options" locale="zh_CN" localized="查询条件"/>
+    <moqui.basic.LocalizedMessage original="(Asc)" locale="zh_CN" localized="升序"/>
+    <moqui.basic.LocalizedMessage original="(Desc)" locale="zh_CN" localized="降序"/>
+    <moqui.basic.LocalizedMessage original="Export" locale="zh_CN" localized="导出"/>
     <moqui.basic.LocalizedMessage original="Clear Parameters" locale="zh_CN" localized="清空参数"/>
     <moqui.basic.LocalizedMessage original="Order By" locale="zh_CN" localized="排序次序"/>
     <moqui.basic.LocalizedMessage original="Column" locale="zh_CN" localized="列"/>
     <moqui.basic.LocalizedMessage original="Column Fields" locale="zh_CN" localized="列字段"/>
     <moqui.basic.LocalizedMessage original="Columns" locale="zh_CN" localized="列"/>
     <moqui.basic.LocalizedMessage original="Do Not Display" locale="zh_CN" localized="不显示"/>
-    <moqui.basic.LocalizedMessage original="Saved Finds" locale="zh_CN" localized="已保存查找"/>
-    <moqui.basic.LocalizedMessage original="Active Saved Find:" locale="zh_CN" localized="当前使用的查找:"/>
+    <moqui.basic.LocalizedMessage original="Saved Finds" locale="zh_CN" localized="已存查询"/>
+    <moqui.basic.LocalizedMessage original="Active Saved Find:" locale="zh_CN" localized="当前查询:"/>
     <moqui.basic.LocalizedMessage original="My Default" locale="zh_CN" localized="我的默认"/>
     <moqui.basic.LocalizedMessage original="Mode" locale="zh_CN" localized="模式"/>
     <moqui.basic.LocalizedMessage original="Schedule" locale="zh_CN" localized="计划"/>
     <moqui.basic.LocalizedMessage original="Setup a schedule to send this saved find to you by email?" locale="zh_CN"
-            localized="设置计划，将此已保存查找通过邮件发送给您？"/>
-    <moqui.basic.LocalizedMessage original="Save New Find" locale="zh_CN" localized="保存新的查找"/>
+            localized="设置计划，将此已存查询通过邮件发送给您？"/>
+    <moqui.basic.LocalizedMessage original="Save New Find" locale="zh_CN" localized="保存为新查询"/>
     <moqui.basic.LocalizedMessage original="No find parameters (or default), choose some in Find Options to save a new find or update existing" locale="zh_CN"
-            localized="没有查找参数（或为默认），请在查找选项中选择条件以保存新查找或更新现有查找"/>
-    <moqui.basic.LocalizedMessage original="Do Find" locale="zh_CN" localized="进行查找"/>
+            localized="没有查询条件（或为默认），请在查询条件中选择后再保存或更新"/>
+    <moqui.basic.LocalizedMessage original="Do Find" locale="zh_CN" localized="查询"/>
     <moqui.basic.LocalizedMessage original="Clear Default" locale="zh_CN" localized="清除默认"/>
     <moqui.basic.LocalizedMessage original="Make Default" locale="zh_CN" localized="设为默认"/>
     <moqui.basic.LocalizedMessage original="CSV" locale="zh_CN" localized="CSV"/>
@@ -66,9 +67,9 @@ Shared originals use the same Chinese as those sidecars.
     <moqui.basic.LocalizedMessage original="Save to Filename" locale="zh_CN" localized="保存文件名"/>
     <moqui.basic.LocalizedMessage original="Export Text" locale="zh_CN" localized="导出文本"/>
     <moqui.basic.LocalizedMessage original="PDF" locale="zh_CN" localized="PDF"/>
-    <moqui.basic.LocalizedMessage original="Generate PDF" locale="zh_CN" localized="生成PDF文件"/>
+    <moqui.basic.LocalizedMessage original="Generate PDF" locale="zh_CN" localized="生成 PDF"/>
     <moqui.basic.LocalizedMessage original="Page Layout" locale="zh_CN" localized="页面布局"/>
-    <moqui.basic.LocalizedMessage original="Find Options required to view results" locale="zh_CN" localized="必须输入查询条件进行查找"/>
+    <moqui.basic.LocalizedMessage original="Find Options required to view results" locale="zh_CN" localized="请先设置查询条件"/>
     <moqui.basic.LocalizedMessage original="No results found" locale="zh_CN" localized="未找到记录"/>
     <moqui.basic.LocalizedMessage original="Paginate" locale="zh_CN" localized="分页"/>
     <moqui.basic.LocalizedMessage original="Show All" locale="zh_CN" localized="显示全部"/>
@@ -86,7 +87,7 @@ Shared originals use the same Chinese as those sidecars.
     <moqui.basic.LocalizedMessage original="Empty" locale="zh_CN" localized="为空"/>
     <moqui.basic.LocalizedMessage original="Ignore Case" locale="zh_CN" localized="忽略大小写"/>
     <moqui.basic.LocalizedMessage original="Reset to Default" locale="zh_CN" localized="重置到默认"/>
-    <moqui.basic.LocalizedMessage original="Page #" locale="zh_CN" localized="页 #"/>
+    <moqui.basic.LocalizedMessage original="Page #" locale="zh_CN" localized="页码"/>
     <moqui.basic.LocalizedMessage original="digits only" locale="zh_CN" localized="仅数字"/>
     <moqui.basic.LocalizedMessage original="higher than max" locale="zh_CN" localized="超过最大页"/>
     <moqui.basic.LocalizedMessage original="Hide" locale="zh_CN" localized="隐藏"/>
@@ -97,8 +98,8 @@ Shared originals use the same Chinese as those sidecars.
 
     <!-- Date period widget -->
     <moqui.basic.LocalizedMessage original="This" locale="zh_CN" localized="本"/>
-    <moqui.basic.LocalizedMessage original="Last" locale="zh_CN" localized="上"/>
-    <moqui.basic.LocalizedMessage original="Next" locale="zh_CN" localized="下"/>
+    <moqui.basic.LocalizedMessage original="Last" locale="zh_CN" localized="上一个"/>
+    <moqui.basic.LocalizedMessage original="Next" locale="zh_CN" localized="下一个"/>
     <moqui.basic.LocalizedMessage original="Day" locale="zh_CN" localized="天"/>
     <moqui.basic.LocalizedMessage original="Days" locale="zh_CN" localized="天"/>
     <moqui.basic.LocalizedMessage original="7 Days" locale="zh_CN" localized="7 天"/>
@@ -119,7 +120,7 @@ Shared originals use the same Chinese as those sidecars.
     <!-- Shell -->
     <moqui.basic.LocalizedMessage original="Documentation" locale="zh_CN" localized="文档"/>
     <moqui.basic.LocalizedMessage original="Notify History" locale="zh_CN" localized="通知历史"/>
-    <moqui.basic.LocalizedMessage original="Screen History" locale="zh_CN" localized="界面历史"/>
+    <moqui.basic.LocalizedMessage original="Screen History" locale="zh_CN" localized="浏览记录"/>
     <moqui.basic.LocalizedMessage original="Account" locale="zh_CN" localized="账户"/>
     <moqui.basic.LocalizedMessage original="Welcome" locale="zh_CN" localized="欢迎"/>
     <moqui.basic.LocalizedMessage original="Logout" locale="zh_CN" localized="退出"/>
@@ -154,5 +155,39 @@ Shared originals use the same Chinese as those sidecars.
     <moqui.basic.LocalizedMessage original="Messages" locale="zh_CN" localized="消息"/>
     <moqui.basic.LocalizedMessage original="Events This Week" locale="zh_CN" localized="本周事件"/>
     <moqui.basic.LocalizedMessage original="Open Tasks" locale="zh_CN" localized="未完成任务"/>
+
+    <!-- Login page (qapps2 overlay of /Login) -->
+    <moqui.basic.LocalizedMessage original="Login" locale="zh_CN" localized="登录"/>
+    <moqui.basic.LocalizedMessage original="SSO" locale="zh_CN" localized="单点登录"/>
+    <moqui.basic.LocalizedMessage original="Username" locale="zh_CN" localized="用户名"/>
+    <moqui.basic.LocalizedMessage original="Reset Password" locale="zh_CN" localized="重置密码"/>
+    <moqui.basic.LocalizedMessage original="Change Password" locale="zh_CN" localized="修改密码"/>
+    <moqui.basic.LocalizedMessage original="Email Reset Password" locale="zh_CN" localized="发送重置密码邮件"/>
+    <moqui.basic.LocalizedMessage original="Test Login (John Doe)" locale="zh_CN" localized="测试登录（John Doe）"/>
+    <moqui.basic.LocalizedMessage original="Welcome to your new system" locale="zh_CN" localized="欢迎使用新系统"/>
+    <moqui.basic.LocalizedMessage original="There are no user accounts, get started by creating an initial administrator account" locale="zh_CN"
+            localized="还没有用户账号，请先创建初始管理员"/>
+    <moqui.basic.LocalizedMessage original="Create Initial Admin Account" locale="zh_CN" localized="创建初始管理员"/>
+    <moqui.basic.LocalizedMessage original="User Full Name" locale="zh_CN" localized="用户姓名"/>
+    <moqui.basic.LocalizedMessage original="Email Address" locale="zh_CN" localized="电子邮箱"/>
+    <moqui.basic.LocalizedMessage original="New Password" locale="zh_CN" localized="新密码"/>
+    <moqui.basic.LocalizedMessage original="New Password Verify" locale="zh_CN" localized="确认新密码"/>
+    <moqui.basic.LocalizedMessage original="Old Password" locale="zh_CN" localized="原密码"/>
+    <moqui.basic.LocalizedMessage original="Enter your username to email a reset password" locale="zh_CN"
+            localized="输入用户名，系统将把重置密码发送到邮箱"/>
+    <moqui.basic.LocalizedMessage original="Enter details to change your password" locale="zh_CN" localized="填写信息以修改密码"/>
+    <moqui.basic.LocalizedMessage original="WARNING: Your password has expired" locale="zh_CN" localized="警告：密码已过期"/>
+    <moqui.basic.LocalizedMessage original="WARNING: Password change required" locale="zh_CN" localized="警告：需要修改密码"/>
+    <moqui.basic.LocalizedMessage original="An authentication code is required for your account, you have these options:" locale="zh_CN"
+            localized="当前账号需要认证码，可使用以下方式："/>
+    <moqui.basic.LocalizedMessage original="Change User" locale="zh_CN" localized="更换用户"/>
+    <moqui.basic.LocalizedMessage original="Password must be at least" locale="zh_CN" localized="密码至少"/>
+    <moqui.basic.LocalizedMessage original="characters" locale="zh_CN" localized="个字符"/>
+    <moqui.basic.LocalizedMessage original="with at least" locale="zh_CN" localized="且至少包含"/>
+    <moqui.basic.LocalizedMessage original="number" locale="zh_CN" localized="位数字"/>
+    <moqui.basic.LocalizedMessage original="and at least" locale="zh_CN" localized="以及"/>
+    <moqui.basic.LocalizedMessage original="punctuation character" locale="zh_CN" localized="个标点"/>
+    <moqui.basic.LocalizedMessage original="Login background" locale="zh_CN" localized="登录背景"/>
+    <moqui.basic.LocalizedMessage original="Wikimedia Commons" locale="zh_CN" localized="维基共享资源"/>
 
 </entity-facade-xml>

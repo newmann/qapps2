@@ -1,26 +1,6 @@
-/* Local Roboto + Material Icons so the theme does not depend on fonts.googleapis.com. */
-@font-face {
-    font-family: 'Roboto';
-    font-style: normal;
-    font-weight: 400;
-    font-display: swap;
-    src: url('/qapps2static/libs/roboto/roboto-latin-400-normal.woff2') format('woff2');
-}
-@font-face {
-    font-family: 'Roboto';
-    font-style: normal;
-    font-weight: 500;
-    font-display: swap;
-    src: url('/qapps2static/libs/roboto/roboto-latin-500-normal.woff2') format('woff2');
-}
-@font-face {
-    font-family: 'Roboto';
-    font-style: normal;
-    font-weight: 700;
-    font-display: swap;
-    src: url('/qapps2static/libs/roboto/roboto-latin-700-normal.woff2') format('woff2');
-}
-
-body, .q-layout, .q-field, .q-btn {
-    font-family: Roboto, "Segoe UI", system-ui, sans-serif;
+/* CJK-first stack. Roboto latin-only mixed poorly with YaHei/PingFang. */
+body, .q-layout, .q-field, .q-btn, .q-item, .q-table, input, button, select, textarea {
+    font-family: "Noto Sans SC", "PingFang SC", "Microsoft YaHei UI", "Microsoft YaHei",
+        "Source Han Sans SC", "Segoe UI", system-ui, sans-serif;
+    letter-spacing: 0;
 }
