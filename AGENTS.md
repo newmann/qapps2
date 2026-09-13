@@ -1,7 +1,7 @@
 # AGENTS — qapps2
 
-Scoped rules for this component. This file overrides the repository root
-`AGENTS.md` when you are working in this directory.
+Scoped rules for this component. This file supplements the repository
+root `AGENTS.md`; the root search contract still applies.
 
 ## Role
 

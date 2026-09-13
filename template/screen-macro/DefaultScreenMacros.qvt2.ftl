@@ -1711,6 +1711,7 @@ ${sri.renderIncludeScreen(.node["@location"], .node["@share-scope"]!)}
     <#if fieldSubParent["@align"]! == "right"><#assign containerStyle = containerStyle + " text-right"><#elseif fieldSubParent["@align"]! == "center"><#assign containerStyle = containerStyle + " text-center"></#if>
     <#if !isMultiFinalRow && !isHeaderField><#if skipCell><div class="form-group<#if containerStyle?has_content>  ${containerStyle}</#if>"><#else><div class="form-group<#if containerStyle?has_content> ${containerStyle}</#if>"></#if></#if>
     <#t>${sri.pushContext()}
+    <#assign _formListHeaderField = isHeaderField>
     <#list fieldSubNode?children as widgetNode><#if widgetNode?node_name == "set">${sri.setInContext(widgetNode)}</#if></#list>
     <#list fieldSubNode?children as widgetNode>
         <#if widgetNode?node_name == "link">
@@ -1742,6 +1743,7 @@ ${sri.renderIncludeScreen(.node["@location"], .node["@share-scope"]!)}
             <#t><#if widgetNodeText?has_content>${widgetNodeText}<#else>&nbsp;</#if>
         </#if>
     </#list>
+    <#assign _formListHeaderField = false>
     <#t>${sri.popContext()}
     <#if !isMultiFinalRow && !isHeaderField><#if skipCell></div><#else></div></#if></#if>
 </#macro>
@@ -1762,6 +1764,9 @@ ${sri.renderIncludeScreen(.node["@location"], .node["@share-scope"]!)}
     </#if>
     <#t><#assign titleValue><#if fieldSubNode["@title"]?has_content>${ec.getResource().expand(fieldSubNode["@title"], "")}<#else><#list fieldSubNode?parent["@name"]?split("(?=[A-Z])", "r") as nameWord>${nameWord?cap_first?replace("Id", "ID")}<#if nameWord_has_next> </#if></#list></#if></#assign>${ec.getL10n().localize(titleValue)}
 </#macro>
+<#macro widgetFieldLabel fieldSubNode><#t>
+    <#if _formListHeaderField!false><#t><#else><@fieldTitle fieldSubNode/></#if>
+</#macro>
 <#macro fieldRequiredClass subFieldNode><#local vc = formInstance.getFieldValidationClasses(subFieldNode)!><#if vc?contains("required")> required</#if></#macro>
 <#macro fieldIdByName fieldName><#if fieldFormId?has_content>${fieldFormId}<#else>${ec.getResource().expandNoL10n(formNode["@name"], "")}</#if>_${fieldName}<#if listEntryIndex?has_content>_${listEntryIndex}</#if><#if sectionEntryIndex?has_content>_${sectionEntryIndex}</#if></#macro>
 
@@ -1777,7 +1782,7 @@ ${sri.renderIncludeScreen(.node["@location"], .node["@share-scope"]!)}
     <#assign tlId><@fieldId .node/></#assign>
     <#assign curName><@fieldName .node/></#assign>
     <#assign containerStyle = ec.getResource().expandNoL10n(.node["@container-style"]!, "")>
-    <#assign fieldLabel><@fieldTitle .node?parent/></#assign>
+    <#assign fieldLabel><@widgetFieldLabel .node?parent/></#assign>
     <#assign useWrapper = (.node["@no-wrapper"]!"false") != "true">
     <#if useWrapper>
     <q-field dense outlined<#if fieldLabel?has_content> stack-label label="${fieldLabel}"</#if>
@@ -1802,12 +1807,12 @@ ${sri.renderIncludeScreen(.node["@location"], .node["@share-scope"]!)}
     <#else><#assign size=16><#assign maxlength=23><#assign defaultFormat="yyyy-MM-dd HH:mm">
     </#if>
     <#assign curFieldName><@fieldName .node/></#assign>
-    <#assign curFieldTitle><@fieldTitle .node?parent/></#assign>
+    <#assign curFieldTitle><@widgetFieldLabel .node?parent/></#assign>
     <#assign fieldValueFrom = ec.getL10n().format(ec.getContext().get(curFieldName + "_from")!?default(.node["@default-value-from"]!""), defaultFormat)>
     <#assign fieldValueThru = ec.getL10n().format(ec.getContext().get(curFieldName + "_thru")!?default(.node["@default-value-thru"]!""), defaultFormat)>
     <span class="form-date-find">
       <m-date-time id="<@fieldId .node/>_from" name="${curFieldName}_from" type="${.node["@type"]!""}" size="${.node["@size"]!""}"<#rt>
-          <#t> label="${curFieldTitle} ${ec.getL10n().localize("From")}"
+          <#t> label="<#if curFieldTitle?has_content>${curFieldTitle} </#if>${ec.getL10n().localize("From")}"
           <#t><#if fieldsJsName?has_content> v-model="${fieldsJsName}.${curFieldName}_from"<#else> model-value="${fieldValueFrom?html}"</#if>
           <#t> :bg-color="formProps.fieldChanged('${curFieldName}_from')?($q.dark.isActive?'blue-10':'blue-1'):''"
           <#t><#if .node?parent["@tooltip"]?has_content> tooltip="${ec.getResource().expand(.node?parent["@tooltip"], "")}"</#if>
@@ -1815,7 +1820,7 @@ ${sri.renderIncludeScreen(.node["@location"], .node["@share-scope"]!)}
     </span>
     <span class="form-date-find">
       <m-date-time id="<@fieldId .node/>_thru" name="${curFieldName}_thru" type="${.node["@type"]!""}" size="${.node["@size"]!""}"<#rt>
-          <#t> label="${curFieldTitle} ${ec.getL10n().localize("Thru")}"
+          <#t> label="<#if curFieldTitle?has_content>${curFieldTitle} </#if>${ec.getL10n().localize("Thru")}"
           <#t><#if fieldsJsName?has_content> v-model="${fieldsJsName}.${curFieldName}_thru"<#else> model-value="${fieldValueThru?html}"</#if>
           <#t> :bg-color="formProps.fieldChanged('${curFieldName}_thru')?($q.dark.isActive?'blue-10':'blue-1'):''"
           <#t><#if .node?parent["@tooltip"]?has_content> tooltip="${ec.getResource().expand(.node?parent["@tooltip"], "")}"</#if>
@@ -1826,7 +1831,7 @@ ${sri.renderIncludeScreen(.node["@location"], .node["@share-scope"]!)}
 <#macro "date-period">
     <#assign tlId><@fieldId .node/></#assign>
     <#assign curFieldName><@fieldName .node/></#assign>
-    <#assign curFieldTitle><@fieldTitle .node?parent/></#assign>
+    <#assign curFieldTitle><@widgetFieldLabel .node?parent/></#assign>
     <#assign allowEmpty = .node["@allow-empty"]!"true">
     <#if .node["@time"]! == "true"><#assign fromThruType = "date-time"><#else><#assign fromThruType = "date"></#if>
     <m-date-period name="${curFieldName}" id="${tlId}" :allow-empty="${allowEmpty}" from-thru-type="${fromThruType}" label="${curFieldTitle}"
@@ -1883,7 +1888,8 @@ a => A, d => D, y => Y
     </#if>
     <#assign curName><@fieldName .node/></#assign>
     <#assign validationClasses = formInstance.getFieldValidationClasses(dtSubFieldNode)>
-    <m-date-time id="<@fieldId .node/>" name="${curName}" type="${.node["@type"]!""}" size="${.node["@size"]!""}" label="<@fieldTitle dtSubFieldNode/>"<#if formDisabled!> disable</#if><#rt>
+    <#assign dtFieldLabel><@widgetFieldLabel dtSubFieldNode/></#assign>
+    <m-date-time id="<@fieldId .node/>" name="${curName}" type="${.node["@type"]!""}" size="${.node["@size"]!""}"<#if dtFieldLabel?has_content> label="${dtFieldLabel}"</#if><#if formDisabled!> disable</#if><#rt>
         <#t><#if fieldsJsName?has_content> v-model="${fieldsJsName}.${curName}"<#else> model-value="${sri.getFieldValueString(dtFieldNode, .node["@default-value"]!"", javaFormat)?html}"</#if>
         <#t> :bg-color="formProps.fieldChanged('${curName}')?($q.dark.isActive?'blue-10':'blue-1'):''"
         <#t><#if .node?parent["@tooltip"]?has_content> tooltip="${ec.getResource().expand(.node?parent["@tooltip"], "")}"</#if>
@@ -1903,7 +1909,7 @@ a => A, d => D, y => Y
     <#assign dispHidden = (!.node["@also-hidden"]?has_content || .node["@also-hidden"] == "true") && !(skipForm!false)>
     <#assign dispDynamic = .node["@dynamic-transition"]?has_content>
     <#assign labelWrapper = dispFormNode?node_name == "form-single">
-    <#assign fieldLabel><@fieldTitle dispSubFieldNode/></#assign>
+    <#assign fieldLabel><@widgetFieldLabel dispSubFieldNode/></#assign>
     <#assign fieldValue = "">
     <#if fieldsJsName?has_content>
         <#assign format = .node["@format"]!>
@@ -1982,7 +1988,7 @@ a => A, d => D, y => Y
     </#if>
 
     <#if dispFormNode?node_name == "form-single">
-        <#assign fieldLabel><@fieldTitle dispSubFieldNode/></#assign>
+        <#assign fieldLabel><@widgetFieldLabel dispSubFieldNode/></#assign>
         <#t><q-input dense outlined readonly<#if fieldLabel?has_content> stack-label label="${fieldLabel}"</#if> id="${dispFieldId}_display"
                 <#t><#if fieldsJsName?has_content> v-model="${fieldsJsName}.${dispFieldName}_display"</#if>
                 <#t>class="<#if dispAlign == "center"> text-center<#elseif dispAlign == "right"> text-right</#if><#if .node["@style"]?has_content> ${ec.getResource().expandNoL10n(.node["@style"], "")}</#if>">
@@ -2032,7 +2038,7 @@ a => A, d => D, y => Y
         <#assign doUrlParameterMap = doUrlInfo.getParameterMap()>
         <#if currentValue?has_content && !currentDescription?has_content><#assign currentDescription><@widgetTextValue .node true/></#assign></#if>
     </#if>
-    <#assign fieldLabel><@fieldTitle ddSubFieldNode/></#assign>
+    <#assign fieldLabel><@widgetFieldLabel ddSubFieldNode/></#assign>
     <m-drop-down name="${name}" id="${tlId}"<#if fieldLabel?has_content> label="${fieldLabel}"</#if><#if formDisabled!> disable</#if><#rt>
             <#t> class="<#if isDynamicOptions>dynamic-options</#if><#if .node["@style"]?has_content> ${ec.getResource().expandNoL10n(.node["@style"], "")}</#if><#if validationClasses?has_content> ${validationClasses}</#if><@fieldRequiredClass ddSubFieldNode/>"<#rt>
             <#t><#if fieldsJsName?has_content> v-model="${fieldsJsName}.${name}" :fields="${fieldsJsName}"<#else><#if allowMultiple> :model-value="[<#list currentValueList as curVal><#if curVal?has_content>'${curVal}',</#if></#list>]"<#else> model-value="${currentValue!}"</#if></#if>
@@ -2065,7 +2071,7 @@ a => A, d => D, y => Y
 
 <#macro file>
     <#assign curFieldName><@fieldName .node/></#assign>
-    <#assign fieldLabel><@fieldTitle .node?parent/></#assign>
+    <#assign fieldLabel><@widgetFieldLabel .node?parent/></#assign>
     <#assign acceptText = ec.getResource().expand(.node.@accept, "")>
     <q-file dense outlined<#if fieldLabel?has_content> stack-label label="${fieldLabel}"</#if> class="<@fieldRequiredClass .node?parent/>"<#if fieldsJsName?has_content> v-model="${fieldsJsName}.${curFieldName}"</#if><#if formDisabled!> disable</#if>
             <#-- TODO-FC <#t> :bg-color="formProps.fieldChanged('${name}')?($q.dark.isActive?'blue-10':'blue-1'):''" -->
@@ -2087,7 +2093,7 @@ a => A, d => D, y => Y
 <#macro password>
     <#assign validationClasses = formInstance.getFieldValidationClasses(.node?parent)>
     <#assign curFieldName><@fieldName .node/></#assign>
-    <#assign fieldLabel><@fieldTitle .node?parent/></#assign>
+    <#assign fieldLabel><@widgetFieldLabel .node?parent/></#assign>
     <q-input dense outlined<#if fieldLabel?has_content> stack-label label="${fieldLabel}"</#if> type="password" name="${curFieldName}" id="<@fieldId .node/>"<#if formDisabled!> disable</#if><#rt>
             <#t><#if fieldsJsName?has_content> v-model="${fieldsJsName}.${curFieldName}"</#if>
             <#t> class="form-control<#if validationClasses?has_content> ${validationClasses}</#if><@fieldRequiredClass .node?parent/>" size="${.node.@size!"25"}"
@@ -2103,7 +2109,7 @@ a => A, d => D, y => Y
     <#if !currentValue?has_content><#assign currentValue = ec.getResource().expandNoL10n(.node["@no-current-selected-key"]!, "")/></#if>
     <#assign tlId><@fieldId .node/></#assign>
     <#assign curName><@fieldName .node/></#assign>
-    <#assign fieldLabel><@fieldTitle .node?parent/></#assign>
+    <#assign fieldLabel><@widgetFieldLabel .node?parent/></#assign>
     <q-field dense outlined<#if fieldLabel?has_content> stack-label label="${fieldLabel}"</#if> class="<@fieldRequiredClass .node?parent/>"<#if formDisabled!> disable</#if>
         <#t> :bg-color="formProps.fieldChanged('${curName}')?($q.dark.isActive?'blue-10':'blue-1'):''">
         <#if .node?parent["@tooltip"]?has_content><q-tooltip><span v-pre>${ec.getResource().expand(.node?parent["@tooltip"], "")}</span></q-tooltip></#if>
@@ -2119,16 +2125,16 @@ a => A, d => D, y => Y
 <#macro "range-find">
     <#assign curFieldName><@fieldName .node/></#assign>
     <#assign tlId><@fieldId .node/></#assign>
-    <#assign fieldLabel><@fieldTitle .node?parent/></#assign>
+    <#assign fieldLabel><@widgetFieldLabel .node?parent/></#assign>
     <#assign curTooltip = ec.getResource().expand(.node?parent["@tooltip"]!, "")>
 <div class="row">
-    <q-input dense outlined stack-label label="${fieldLabel} ${ec.getL10n().localize('From')}" name="${curFieldName}_from" id="${tlId}_from"<#if ownerForm?has_content> form="${ownerForm}"</#if><#rt>
+    <q-input dense outlined stack-label label="<#if fieldLabel?has_content>${fieldLabel} </#if>${ec.getL10n().localize('From')}" name="${curFieldName}_from" id="${tlId}_from"<#if ownerForm?has_content> form="${ownerForm}"</#if><#rt>
             <#t> size="${.node.@size!"10"}"<#if .node.@maxlength?has_content> maxlength="${.node.@maxlength}"</#if>
             <#t> :bg-color="formProps.fieldChanged('${curFieldName}_from')?($q.dark.isActive?'blue-10':'blue-1'):''"
             <#t><#if fieldsJsName?has_content> v-model="${fieldsJsName}.${curFieldName}_from"<#else> model-value="${ec.getContext().get(curFieldName + "_from")!?default(.node["@default-value-from"]!"")?html}"</#if>>
         <#if curTooltip?has_content><q-tooltip><span v-pre>${curTooltip}</span></q-tooltip></#if>
     </q-input>
-    <q-input class="q-pl-xs" dense outlined stack-label label="${fieldLabel} ${ec.getL10n().localize('Thru')}" name="${curFieldName}_thru" id="${tlId}_thru"<#if ownerForm?has_content> form="${ownerForm}"</#if><#rt>
+    <q-input class="q-pl-xs" dense outlined stack-label label="<#if fieldLabel?has_content>${fieldLabel} </#if>${ec.getL10n().localize('Thru')}" name="${curFieldName}_thru" id="${tlId}_thru"<#if ownerForm?has_content> form="${ownerForm}"</#if><#rt>
             <#t> size="${.node.@size!"10"}"<#if .node.@maxlength?has_content> maxlength="${.node.@maxlength}"</#if>
             <#t> :bg-color="formProps.fieldChanged('${curFieldName}_thru')?($q.dark.isActive?'blue-10':'blue-1'):''"
             <#t><#if fieldsJsName?has_content> v-model="${fieldsJsName}.${curFieldName}_thru"<#else> model-value="${ec.getContext().get(curFieldName + "_thru")!?default(.node["@default-value-thru"]!"")?html}"</#if>>
@@ -2201,7 +2207,7 @@ a => A, d => D, y => Y
 
 <#macro "text-area">
     <#assign name><@fieldName .node/></#assign>
-    <#assign fieldLabel><@fieldTitle .node?parent/></#assign>
+    <#assign fieldLabel><@widgetFieldLabel .node?parent/></#assign>
     <#assign editorType = ec.getResource().expand(.node["@editor-type"]!"", "")>
     <#if editorType == "html">
         <#-- support CSS from editorScreenThemeId with resourceTypeEnumId=STRT_STYLESHEET, like: contentsCss:['/css/mysitestyles.css','/css/anotherfile.css']; -->
@@ -2267,7 +2273,7 @@ a => A, d => D, y => Y
         -->
     <#else>
         <#assign tlAlign = tlFieldNode["@align"]!"left">
-        <#assign fieldLabel><@fieldTitle tlSubFieldNode/></#assign>
+        <#assign fieldLabel><@widgetFieldLabel tlSubFieldNode/></#assign>
         <#if .node["@default-transition"]?has_content>
             <#assign defUrlInfo = sri.makeUrlByType(.node["@default-transition"], "transition", .node, "false")>
             <#assign defUrlParameterMap = defUrlInfo.getParameterMap()>
@@ -2299,10 +2305,11 @@ a => A, d => D, y => Y
 </#macro>
 
 <#macro "text-find">
-<div class="row">
     <#assign curFieldName><@fieldName .node/></#assign>
-    <#assign fieldLabel><@fieldTitle .node?parent/></#assign>
+    <#assign fieldLabel><@widgetFieldLabel .node?parent/></#assign>
     <#assign hideOptions = .node["@hide-options"]!"false">
+    <#assign wrapTextFindRow = hideOptions != "true">
+    <#if wrapTextFindRow><div class="row"></#if>
     <q-input dense outlined<#if fieldLabel?has_content> stack-label label="${fieldLabel}"</#if> name="${curFieldName}"<#rt>
             <#t> size="${.node.@size!"30"}"<#if .node.@maxlength?has_content> maxlength="${.node.@maxlength}"</#if> id="<@fieldId .node/>"
             <#t> :bg-color="formProps.fieldChanged('${curFieldName}')?($q.dark.isActive?'blue-10':'blue-1'):''"
@@ -2334,7 +2341,7 @@ a => A, d => D, y => Y
         </template>
         </#if>
     </q-input>
-</div>
+    <#if wrapTextFindRow></div></#if>
 </#macro>
 
 <#macro widgetTextValue widgetNode alwaysGet=false valueField="label">

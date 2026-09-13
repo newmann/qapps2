@@ -1710,7 +1710,7 @@ qapps2Register('m-drop-down', {
                 ' input-debounce="500" @filter="filterFn" :clearable="allowEmpty||multiple" :disable="disable"' +
                 ' :multiple="multiple" :emit-value="!onSelectGoTo" map-options behavior="menu"' +
                 ' :rules="[val => allowEmpty||multiple||val===\'\'||(val&&val.length)||\'Please select an option\']"' +
-                ' stack-label :label="label" :loading="loading" :bg-color="bgColor" :options="curOptions">' +
+                ' :stack-label="!!label" :label="label" :loading="loading" :bg-color="bgColor" :options="curOptions">' +
             '<q-tooltip v-if="tooltip">{{tooltip}}</q-tooltip>' +
             '<template v-slot:no-option><q-item><q-item-section class="text-grey">No results</q-item-section></q-item></template>' +
             '<template v-if="multiple" v-slot:prepend><div>' +
@@ -1988,7 +1988,7 @@ qapps2Register('m-text-line', {
         defaultUrl:String, defaultParameters:Object, dependsOn:Object, dependsOptional:Boolean, defaultLoadInit:Boolean },
     data: function() { return { loading:false } },
     template:
-        '<q-input :dense="dense" :outlined="outlined" :bg-color="bgColor" stack-label :label="label" :prefix="prefix"' +
+        '<q-input :dense="dense" :outlined="outlined" :bg-color="bgColor" :stack-label="!!label" :label="label" :prefix="prefix"' +
                 ' v-bind:modelValue="modelValue" v-on:update:modelValue="$emit(\'update:modelValue\', $event)" :type="type"' +
                 ' :id="id" :name="name" :size="size" :loading="loading" :rules="rules" :disable="disable"' +
                 ' :mask="mask" :fill-mask="fillMask" :reverse-fill-mask="reverseFillMask"' +
