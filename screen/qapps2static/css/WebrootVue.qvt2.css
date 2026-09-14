@@ -520,3 +520,34 @@ body.Login, body.Login #content { background: #05070d; min-height: 100vh; }
 }
 .qapps2-login-input:focus { outline: none; border-color: var(--q-primary); }
 .qapps2-login-label { display: block; font-size: 12px; color: var(--qapps2-text-muted); margin: 0 0 4px 2px; }
+
+/* ====== Subscreen switch animation ====== */
+.qapps2-subscreen-wrap { position: relative; }
+.fade-enter-active { animation: fadeEnter 0.5s ease; }
+.fade-leave-active {
+    animation: fadeLeave 0.5s ease;
+    position: absolute;
+    width: 100%;
+    left: 0;
+    top: 0;
+}
+@keyframes fadeEnter {
+    from {
+        transform: translateY(-30px);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+@keyframes fadeLeave {
+    from {
+        transform: translateY(0);
+        opacity: 1;
+    }
+    to {
+        transform: translateY(100px);
+        opacity: 0;
+    }
+}

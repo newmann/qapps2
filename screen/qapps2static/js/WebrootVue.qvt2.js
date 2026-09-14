@@ -2293,8 +2293,13 @@ qapps2Register('m-subscreens-tabs', {
 });
 qapps2Register('m-subscreens-active', {
     name: "mSubscreensActive",
-    data: function() { return { activeComponent:moqui.EmptyComponent, pathIndex:-1, pathName:null } },
-    template: '<component :is="activeComponent" style="height:100%;width:100%;"></component>',
+    data: function() { return { activeComponent:moqui.EmptyComponent, pathIndex:-1, pathName:null, displayKey:'empty' } },
+    template:
+    '<div class="qapps2-subscreen-wrap">' +
+        '<transition name="fade">' +
+            '<component :is="activeComponent" :key="displayKey" style="height:100%;width:100%;"></component>' +
+        '</transition>' +
+    '</div>',
     // method instead of a watch on pathName so that it runs even when newPath is the same for non-static reloading
     methods: { loadActive: function() {
         var vm = this;
@@ -2307,6 +2312,7 @@ qapps2Register('m-subscreens-active', {
         if (!newPath || newPath.length === 0) {
             moqui.qapps2Log("in m-subscreens-active newPath is empty, loading EmptyComponent");
             this.activeComponent = qapps2RawComp(moqui.EmptyComponent);
+            this.displayKey = 'empty';
             return true;
         }
         var fullPath = root.basePath + '/' + curPathList.slice(0, pathIndex + 1).join('/');
@@ -2330,6 +2336,7 @@ qapps2Register('m-subscreens-active', {
         root.currentLoadRequest = moqui.loadComponent(urlInfo, function(comp) {
             root.currentLoadRequest = null;
             vm.activeComponent = qapps2RawComp(comp);
+            vm.displayKey = newPath || 'empty';
             root.loading--;
         });
         return true;
