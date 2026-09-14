@@ -177,7 +177,21 @@ pre { text-wrap: normal; white-space: pre-line; word-wrap: normal; word-break: n
 
 .q-btn { margin: 2px; }
 .q-btn--dense { padding: 4px 8px; }
-.q-btn .q-icon, .q-btn .q-spinner { font-size: 18px; padding: 2px 0; }
+.q-btn .q-icon, .q-btn .q-spinner,
+.q-btn .fa, .q-item .fa, .qapps2-crumbs .fa {
+    font-size: 18px;
+    line-height: 1;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    vertical-align: middle;
+    align-self: center;
+}
+.q-item__label {
+    display: inline-flex;
+    align-items: center;
+}
 .m-link.q-btn--flat { margin: 0; padding: 0 4px; min-height: 1.5em; }
 .m-link.q-btn--flat .q-btn__content { line-height: 1.5; }
 .q-btn__content { flex-wrap: nowrap; }

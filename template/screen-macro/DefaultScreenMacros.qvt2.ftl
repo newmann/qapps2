@@ -2194,8 +2194,9 @@ a => A, d => D, y => Y
     <q-btn dense <#if isFlat>flat<#else>unelevated</#if> no-caps type="submit" name="${submitFieldName}" value="${submitFieldName}" id="<@fieldId .node/>"<#rt>
             <#t> color="<#if isDanger>negative<#elseif qColor?has_content>${qColor}<#else>primary</#if>"<#if formDisabled!> disabled</#if>
             <#t><#if confirmationMessage?has_content> @click.prevent="moqui.confirmSubmit($event, '${confirmationMessage?js_string}')"</#if>
-            <#t><#if ownerForm?has_content> form="${ownerForm}"</#if><#if !rowActionIconOnly && !.node["image"]?has_content> label="${buttonText}"</#if>>
-        <#if iconClass?has_content><i class="${iconClass}"></i></#if>
+            <#t><#if ownerForm?has_content> form="${ownerForm}"</#if>>
+        <#if iconClass?has_content><i class="${iconClass} q-icon<#if !rowActionIconOnly && buttonText?has_content> on-left</#if>"></i></#if>
+        <#if !rowActionIconOnly && !.node["image"]?has_content><span v-pre>${buttonText}</span></#if>
         <#if rowActionIconOnly || .node?parent["@tooltip"]?has_content>
             <q-tooltip><span v-pre><#if .node?parent["@tooltip"]?has_content>${ec.getResource().expand(.node?parent["@tooltip"], "")}<#else>${buttonText}</#if></span></q-tooltip>
         </#if>
