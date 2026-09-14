@@ -623,57 +623,114 @@ qapps2Register('m-dynamic-dialog', {
         if (this.openDialog) { this.isShown = true; }
     }
 });
+function qapps2MapTreeNodes(list, expandedKeys, selectedHolder) {
+    var nodes = [];
+    if (!moqui.isArray(list)) return nodes;
+    for (var i = 0; i < list.length; i++) {
+        var src = list[i] || {};
+        var node = { id:src.id, label:src.text, a_attr:src.a_attr, li_attr:src.li_attr };
+        if (src.state) {
+            if (src.state.opened && expandedKeys && node.id != null) expandedKeys.push(node.id);
+            if (src.state.selected && selectedHolder) selectedHolder.id = node.id;
+        }
+        if (src.children === true) {
+            node.lazy = true;
+            node.qapps2Folder = true;
+        } else if (moqui.isArray(src.children)) {
+            node.children = qapps2MapTreeNodes(src.children, expandedKeys, selectedHolder);
+            node.qapps2Folder = node.children.length > 0;
+        } else {
+            node.qapps2Folder = false;
+        }
+        nodes.push(node);
+    }
+    return nodes;
+}
 qapps2Register('m-tree-top', {
     name: "mTreeTop",
-    template: '<ul :id="id" class="tree-list"><m-tree-item v-for="model in itemList" :key="model.id" :model="model" :top="top"/></ul>',
-    props: { id:{type:String,required:true}, items:{type:[String,Array],required:true}, openPath:String, parameters:Object },
-    data: function() { return { urlItems:null, currentPath:null, top:this }},
-    computed: {
-        itemList: function() { if (this.urlItems) { return this.urlItems; } return moqui.isArray(this.items) ? this.items : []; }
-    },
-    methods: { },
-    mounted: function() { if (moqui.isString(this.items)) {
-        this.currentPath = this.openPath;
-        var allParms = $.extend({ moquiSessionToken:this.$root.moquiSessionToken, treeNodeId:'#', treeOpenPath:this.openPath }, this.parameters);
-        var vm = this; $.ajax({ type:'POST', dataType:'json', url:this.items, headers:{Accept:'application/json'}, data:allParms,
-            error:moqui.handleAjaxError, success:function(resp) { vm.urlItems = resp; /*console.info('m-tree-top response ' + JSON.stringify(resp));*/ } });
-    }}
-});
-qapps2Register('m-tree-item', {
-    name: "mTreeItem",
     template:
-    '<li :id="model.id">' +
-        '<i v-if="isFolder" @click="toggle" class="fa" :class="{\'fa-chevron-right\':!open, \'fa-chevron-down\':open}"></i>' +
-        '<i v-else class="fa fa-square-o"></i>' +
-        ' <span @click="setSelected">' +
-            '<m-link v-if="model.a_attr" :href="model.a_attr.urlText" :load-id="model.a_attr.loadId" :class="{\'text-success\':selected}">{{model.text}}</m-link>' +
-            '<span v-if="!model.a_attr" :class="{\'text-success\':selected}">{{model.text}}</span>' +
-        '</span>' +
-        '<ul v-show="open" v-if="hasChildren"><m-tree-item v-for="model in model.children" :key="model.id" :model="model" :top="top"/></ul></li>',
-    props: { model:Object, top:Object },
-    data: function() { return { open:false }},
-    computed: {
-        isFolder: function() { var children = this.model.children; if (!children) { return false; }
-            if (moqui.isArray(children)) { return children.length > 0 } return true; },
-        hasChildren: function() { var children = this.model.children; return moqui.isArray(children) && children.length > 0; },
-        selected: function() { return this.top.currentPath === this.model.id; }
-    },
-    watch: { open: function(newVal) { if (newVal) {
-        var children = this.model.children;
-        var url = this.top.items;
-        if (this.open && children && moqui.isBoolean(children) && moqui.isString(url)) {
-            var li_attr = this.model.li_attr;
-            var allParms = $.extend({ moquiSessionToken:this.$root.moquiSessionToken, treeNodeId:this.model.id,
-                treeNodeName:(li_attr && li_attr.treeNodeName ? li_attr.treeNodeName : ''), treeOpenPath:this.top.currentPath }, this.top.parameters);
-            var vm = this; $.ajax({ type:'POST', dataType:'json', url:url, headers:{Accept:'application/json'}, data:allParms,
-                error:moqui.handleAjaxError, success:function(resp) { vm.model.children = resp; } });
+        '<div :id="id" class="qapps2-tree">' +
+            '<q-tree class="qapps2-q-tree" :nodes="nodes" node-key="id" label-key="label" dense no-connectors no-transition no-selection-unset ' +
+                'color="grey-7" selected-color="primary" ' +
+                'v-model:selected="currentPath" v-model:expanded="expandedKeys" ' +
+                '@lazy-load="onLazyLoad">' +
+                '<template v-slot:default-header="prop">' +
+                    '<div class="row no-wrap items-center qapps2-tree-node">' +
+                        '<q-icon :name="nodeIcon(prop)" size="18px" class="qapps2-tree-icon q-mr-sm"></q-icon>' +
+                        '<m-link v-if="prop.node.a_attr && prop.node.a_attr.urlText" :href="prop.node.a_attr.urlText" ' +
+                            ':load-id="prop.node.a_attr.loadId" class="qapps2-tree-label ellipsis">{{prop.node.label}}</m-link>' +
+                        '<span v-else class="qapps2-tree-label ellipsis">{{prop.node.label}}</span>' +
+                    '</div>' +
+                '</template>' +
+            '</q-tree>' +
+        '</div>',
+    props: { id:{type:String,required:true}, items:{type:[String,Array],required:true}, openPath:String, parameters:Object },
+    data: function() { return { nodes:[], currentPath:null, expandedKeys:[] }; },
+    watch: {
+        currentPath: function(key) {
+            if (key && this.expandedKeys.indexOf(key) < 0) {
+                this.expandedKeys = this.expandedKeys.concat([key]);
+            }
         }
-    }}},
-    methods: {
-        toggle: function() { if (this.isFolder) { this.open = !this.open; } },
-        setSelected: function() { this.top.currentPath = this.model.id; this.open = true; }
     },
-    mounted: function() { if (this.model.state && this.model.state.opened) { this.open = true; } }
+    methods: {
+        nodeIcon: function(prop) {
+            var node = (prop && prop.node) || {};
+            if (node.qapps2Folder || node.lazy || (moqui.isArray(node.children) && node.children.length)) {
+                return prop.expanded ? 'folder_open' : 'folder';
+            }
+            return 'description';
+        },
+        applyItems: function(list) {
+            var expanded = [];
+            var selected = { id:null };
+            this.nodes = qapps2MapTreeNodes(list, expanded, selected);
+            this.expandedKeys = expanded;
+            if (selected.id) this.currentPath = selected.id;
+            else if (this.openPath) this.currentPath = this.openPath;
+        },
+        fetchNodes: function(treeNodeId, treeNodeName, done, fail) {
+            if (!moqui.isString(this.items)) { if (fail) fail(); return; }
+            var allParms = $.extend({
+                moquiSessionToken:this.$root.moquiSessionToken,
+                treeNodeId:treeNodeId,
+                treeNodeName:treeNodeName || '',
+                treeOpenPath:this.currentPath || this.openPath
+            }, this.parameters);
+            var vm = this;
+            $.ajax({
+                type:'POST', dataType:'json', url:this.items, headers:{Accept:'application/json'}, data:allParms,
+                error:function(jqXHR, textStatus, errorThrown) {
+                    moqui.handleAjaxError(jqXHR, textStatus, errorThrown);
+                    if (fail) fail();
+                },
+                success:function(resp) {
+                    if (!moqui.isArray(resp)) resp = [];
+                    if (done) {
+                        var extraExpanded = [];
+                        var children = qapps2MapTreeNodes(resp, extraExpanded, null);
+                        if (extraExpanded.length) vm.expandedKeys = vm.expandedKeys.concat(extraExpanded);
+                        done(children);
+                    } else {
+                        vm.applyItems(resp);
+                    }
+                }
+            });
+        },
+        onLazyLoad: function(info) {
+            var node = (info && info.node) || {};
+            var liAttr = node.li_attr || {};
+            this.fetchNodes(info.key || node.id, liAttr.treeNodeName, info.done, info.fail);
+        }
+    },
+    mounted: function() {
+        if (moqui.isString(this.items)) {
+            this.currentPath = this.openPath;
+            this.fetchNodes('#', '', null, null);
+        } else if (moqui.isArray(this.items)) {
+            this.applyItems(this.items);
+        }
+    }
 });
 /* ========== general field components ========== */
 qapps2Register('m-editable', {

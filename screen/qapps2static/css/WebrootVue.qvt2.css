@@ -311,7 +311,65 @@ dd { margin-left: 0; }
 .dl-horizontal dd:before, .dl-horizontal dd:after { display: table; content: " "; }
 .dl-horizontal dd:after { clear: both; }
 
-ul.tree-list, ul.tree-list ul { list-style-type: none; padding: 4px 4px 4px 20px; }
+.qapps2-tree { color: var(--qapps2-text); }
+.qapps2-q-tree { padding: 2px 0; }
+.qapps2-q-tree .q-tree__node-header {
+    position: relative;
+    border-radius: 6px;
+    min-height: 28px;
+    padding: 3px 8px 3px 4px;
+    margin: 1px 0;
+    color: var(--qapps2-text);
+}
+.qapps2-q-tree .q-tree__node-header:hover {
+    background: var(--qapps2-active-bg);
+}
+.qapps2-q-tree .q-tree__node--selected > .q-tree__node-header {
+    background: var(--qapps2-active-bg);
+}
+.qapps2-q-tree .q-tree__node--selected > .q-tree__node-header::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 6px;
+    bottom: 6px;
+    width: 3px;
+    border-radius: 0 2px 2px 0;
+    background: var(--q-primary);
+}
+.qapps2-tree-node { min-width: 0; flex: 1 1 auto; }
+.qapps2-tree-icon { color: var(--qapps2-text-muted); flex: 0 0 auto; }
+.qapps2-tree .qapps2-tree-label {
+    color: var(--qapps2-text);
+    text-decoration: none;
+    font-size: 13px;
+    line-height: 1.4;
+    min-width: 0;
+}
+.qapps2-tree a.q-link.qapps2-tree-label {
+    color: var(--q-primary);
+}
+.qapps2-tree-node:has(a.qapps2-tree-label) .qapps2-tree-icon {
+    color: var(--q-primary);
+}
+.qapps2-tree a.q-link.qapps2-tree-label:hover {
+    text-decoration: underline;
+}
+.qapps2-q-tree .q-tree__node--selected .qapps2-tree-icon,
+.qapps2-q-tree .q-tree__node--selected .qapps2-tree-label,
+.qapps2-q-tree .q-tree__node--selected a {
+    color: var(--q-primary);
+    font-weight: 500;
+}
+.qapps2-q-tree .q-tree__arrow,
+.qapps2-q-tree .q-tree__spinner {
+    color: var(--qapps2-text-muted);
+    font-size: 16px;
+}
+.qapps2-q-tree .q-tree__icon,
+.qapps2-q-tree > .q-tree__node .q-icon.q-tree__icon {
+    display: none;
+}
 
 ul.float-box { display: inline-block; list-style: none outside none; margin: 0 0 -8px 0; padding: 0; }
 ul.float-box li { display: inline-block; line-height: 18px; margin: 0 8px 8px 0; padding: 8px; float: left; }
