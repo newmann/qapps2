@@ -29,6 +29,8 @@ Shared originals use the same Chinese as those sidecars.
     <moqui.basic.LocalizedMessage original="OK" locale="zh_CN" localized="确定"/>
     <moqui.basic.LocalizedMessage original="View" locale="zh_CN" localized="查看"/>
     <moqui.basic.LocalizedMessage original="Clear" locale="zh_CN" localized="清除"/>
+    <moqui.basic.LocalizedMessage original="Today" locale="zh_CN" localized="今天"/>
+    <moqui.basic.LocalizedMessage original="Now" locale="zh_CN" localized="现在"/>
     <moqui.basic.LocalizedMessage original="Required" locale="zh_CN" localized="必填"/>
 
     <!-- form-list chrome -->

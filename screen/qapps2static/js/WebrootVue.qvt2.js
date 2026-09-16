@@ -1529,20 +1529,32 @@ qapps2Register('m-date-time', {
         '<template v-slot:prepend v-if="type==\'date\' || type==\'date-time\' || !type">' +
             '<q-icon name="event" class="cursor-pointer">' +
                 '<q-popup-proxy ref="qDateProxy" transition-show="scale" transition-hide="scale">' +
-                    '<q-date v-bind:modelValue="modelValue" v-on:update:modelValue="$emit(\'update:modelValue\', $event)" :mask="formatVal" @update:model-value="function(){$refs.qDateProxy.hide()}"></q-date>' +
+                    '<q-date v-bind:modelValue="modelValue" v-on:update:modelValue="$emit(\'update:modelValue\', $event)" :mask="formatVal" @update:model-value="function(){$refs.qDateProxy.hide()}">' +
+                        '<div class="row items-center justify-between q-px-sm q-pb-sm">' +
+                            '<q-btn flat dense no-caps v-close-popup :label="moqui.l10n(\'Clear\')" @click="clearDate"></q-btn>' +
+                            '<q-btn flat dense no-caps v-close-popup :label="moqui.l10n(\'Today\')" @click="setToNow"></q-btn>' +
+                        '</div>' +
+                    '</q-date>' +
                 '</q-popup-proxy>' +
             '</q-icon>' +
         '</template>' +
         '<template v-slot:append v-if="type==\'time\' || type==\'date-time\' || !type">' +
             '<q-icon name="access_time" class="cursor-pointer">' +
                 '<q-popup-proxy ref="qTimeProxy" transition-show="scale" transition-hide="scale">' +
-                    '<q-time v-bind:modelValue="modelValue" v-on:update:modelValue="$emit(\'update:modelValue\', $event)" :mask="formatVal" format24h @update:model-value="function(){$refs.qTimeProxy.hide()}"></q-time>' +
+                    '<q-time v-bind:modelValue="modelValue" v-on:update:modelValue="$emit(\'update:modelValue\', $event)" :mask="formatVal" format24h @update:model-value="function(){$refs.qTimeProxy.hide()}">' +
+                        '<div class="row items-center justify-between q-px-sm q-pb-sm">' +
+                            '<q-btn flat dense no-caps v-close-popup :label="moqui.l10n(\'Clear\')" @click="clearDate"></q-btn>' +
+                            '<q-btn flat dense no-caps v-close-popup :label="moqui.l10n(\'Now\')" @click="setToNow"></q-btn>' +
+                        '</div>' +
+                    '</q-time>' +
                 '</q-popup-proxy>' +
             '</q-icon>' +
         '</template>' +
         '<template v-slot:after><slot name="after"></slot></template>' +
     '</q-input>',
     methods: {
+        clearDate: function() { this.$emit('update:modelValue', ''); },
+        setToNow: function() { this.$emit('update:modelValue', moment().format(this.formatVal)); },
         focusDate: function(event) {
             if (this.type === 'time' || this.autoYear === 'false') return;
             var curVal = this.modelValue;
@@ -1554,6 +1566,7 @@ qapps2Register('m-date-time', {
         blurDate: function(event) {
             if (this.type === 'time') return;
             var curVal = this.modelValue;
+            if (!curVal || !curVal.length) return;
             // console.log("date/time unfocus val " + curVal);
             // if contains 'd ' (month/day missing, or month specified but date missing or partial) clear input
             // Sufficient to check for just 'd', since the mask handles any scenario where there would only be a single 'd'
@@ -1626,7 +1639,12 @@ qapps2Register('m-date-period', {
         '<template v-slot:prepend>' +
             '<q-icon name="event" class="cursor-pointer">' +
                 '<q-popup-proxy ref="qDateProxy" transition-show="scale" transition-hide="scale">' +
-                    '<q-date v-model="fields[name+\'_pdate\']" mask="YYYY-MM-DD" @update:model-value="function(){$refs.qDateProxy.hide()}"></q-date>' +
+                    '<q-date v-model="fields[name+\'_pdate\']" mask="YYYY-MM-DD" @update:model-value="function(){$refs.qDateProxy.hide()}">' +
+                        '<div class="row items-center justify-between q-px-sm q-pb-sm">' +
+                            '<q-btn flat dense no-caps v-close-popup :label="moqui.l10n(\'Clear\')" @click="clearPdate"></q-btn>' +
+                            '<q-btn flat dense no-caps v-close-popup :label="moqui.l10n(\'Today\')" @click="setPdateToday"></q-btn>' +
+                        '</div>' +
+                    '</q-date>' +
                 '</q-popup-proxy>' +
             '</q-icon>' +
         '</template>' +
@@ -1641,6 +1659,8 @@ qapps2Register('m-date-period', {
             this.fields[this.name+'_pdate'] = null; this.fields[this.name+'_poffset'] = null; this.fields[this.name+'_period'] = null;
             this.fields[this.name+'_from'] = null; this.fields[this.name+'_thru'] = null;
         },
+        clearPdate: function() { this.fields[this.name+'_pdate'] = ''; },
+        setPdateToday: function() { this.fields[this.name+'_pdate'] = moment().format('YYYY-MM-DD'); },
         fieldChanged: function(name) {
             return !moqui.equalsOrPlaceholder(this.fields[name], this.fieldsOriginal[name]);
         }

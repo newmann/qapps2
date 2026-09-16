@@ -236,6 +236,8 @@ qapps2 Vue 3 + Quasar 2 shell. Independent copy of WebrootVue.qvt.ftl.
         From: '${ec.l10n.localize("From")?js_string}',
         Thru: '${ec.l10n.localize("Thru")?js_string}',
         Clear: '${ec.l10n.localize("Clear")?js_string}',
+        Today: '${ec.l10n.localize("Today")?js_string}',
+        Now: '${ec.l10n.localize("Now")?js_string}',
         'Search or Lookup by ID': '${ec.l10n.localize("Search or Lookup by ID")?js_string}',
         'Active Organization': '${ec.l10n.localize("Active Organization")?js_string}',
         'Clear Active Organization': '${ec.l10n.localize("Clear Active Organization")?js_string}',
