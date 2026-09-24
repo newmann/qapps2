@@ -565,3 +565,11 @@ body.Login, body.Login #content { background: #05070d; min-height: 100vh; }
         opacity: 0;
     }
 }
+
+.qapps2-md { overflow-wrap:anywhere; }
+.qapps2-md table { border-collapse:collapse; width:100%; margin:0.5em 0; }
+.qapps2-md th, .qapps2-md td { border:1px solid var(--qapps2-border); padding:4px 8px; vertical-align:top; }
+.qapps2-md th { background:var(--qapps2-surface-alt); }
+.qapps2-md pre { overflow:auto; background:var(--qapps2-surface-alt); padding:8px; }
+.qapps2-md code { font-family:monospace; }
+.qapps2-md img { max-width:100%; }

@@ -55,7 +55,11 @@ def jsdelivrMap = [
     "material-icons@1.13.14/iconfont/material-icons.woff":"material-icons/material-icons.woff",
     "@fontsource/roboto@5.2.5/files/roboto-latin-400-normal.woff2":"roboto/roboto-latin-400-normal.woff2",
     "@fontsource/roboto@5.2.5/files/roboto-latin-500-normal.woff2":"roboto/roboto-latin-500-normal.woff2",
-    "@fontsource/roboto@5.2.5/files/roboto-latin-700-normal.woff2":"roboto/roboto-latin-700-normal.woff2"
+    "@fontsource/roboto@5.2.5/files/roboto-latin-700-normal.woff2":"roboto/roboto-latin-700-normal.woff2",
+
+    // Read-only markdown preview (m-markdown). Not added to qvt2Js, so these stay out of CombinedQvt2.min.js.
+    "marked@15.0.12/marked.min.js":"marked/marked.min.js",
+    "dompurify@3.4.16/dist/purify.min.js":"dompurify/purify.min.js"
 ]
 
 String getTargetPath(String sourcePath, String targetPath) {

@@ -577,10 +577,10 @@ qapps2Register('m-dynamic-dialog', {
     name: "mDynamicDialog",
     props: { id:{type:String}, url:{type:String,required:true}, color:String, buttonText:String, buttonClass:String, title:String, width:{type:String},
         openDialog:{type:Boolean,'default':false}, dynamicParams:{type:Object,'default':null},
-        linkType:{type:String,'default':'button'} },
+        buttonType:{type:String,'default':'button'} },
     data: function() { return { curComponent:moqui.EmptyComponent, curUrl:"", isShown:false} },
     computed: {
-        isAnchor: function() { return this.linkType === 'anchor'; }
+        isAnchor: function() { return this.buttonType === 'anchor'; }
     },
     template:
     '<span>' +
@@ -2273,6 +2273,44 @@ qapps2Register('m-simple-mde', {
         }, function() { return !!window.SimpleMDE; });
     },
     watch: { modelValue: function(val) { if (this.simplemde && this.simplemde.value() !== val) this.simplemde.value(val); } }
+});
+/* Read-only Markdown preview. marked and DOMPurify load on first use and are not part of CombinedQvt2. */
+qapps2Register('m-markdown', {
+    name: 'mMarkdown',
+    props: { source:{type:String,'default':''} },
+    data: function() { return { html:'', renderSeq:0 } },
+    template: '<div class="qapps2-md" v-html="html"></div>',
+    mounted: function() { this.renderSource(); },
+    watch: { source: function() { this.renderSource(); } },
+    methods: {
+        renderSource: function() {
+            var vm = this;
+            var seq = ++vm.renderSeq;
+            var src = vm.source == null ? '' : String(vm.source);
+            moqui.loadScript('/qapps2static/libs/marked/marked.min.js', function(err) {
+                if (err || !window.marked || !window.marked.parse) { vm.showPlain(src, seq); return; }
+                moqui.loadScript('/qapps2static/libs/dompurify/purify.min.js', function(err2) {
+                    if (err2 || !window.DOMPurify || !window.DOMPurify.sanitize) { vm.showPlain(src, seq); return; }
+                    try { vm.showHtml(vm.toHtml(src), seq); }
+                    catch (e) { vm.showPlain(src, seq); }
+                }, function() { return !!(window.DOMPurify && window.DOMPurify.sanitize); });
+            }, function() { return !!(window.marked && window.marked.parse); });
+        },
+        toHtml: function(src) {
+            var raw = window.marked.parse(src, { gfm:true, breaks:false });
+            return window.DOMPurify.sanitize(raw, {
+                ALLOWED_TAGS: ['h1','h2','h3','h4','h5','h6','p','br','hr','ul','ol','li','blockquote','pre','code',
+                    'strong','em','del','a','img','table','thead','tbody','tr','th','td','input'],
+                ALLOWED_ATTR: ['href','src','alt','title','class','align','colspan','rowspan','checked','disabled','type'],
+                ALLOWED_URI_REGEXP: /^(?:(?:https?|mailto):|#|\/(?!\/))/i
+            });
+        },
+        showHtml: function(html, seq) { if (this.renderSeq === seq) this.html = html; },
+        showPlain: function(src, seq) {
+            if (this.renderSeq !== seq) return;
+            this.html = String(src || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br/>');
+        }
+    }
 });
 
 
