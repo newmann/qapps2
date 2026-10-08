@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Demo gallery for qapps2 m-dash-* components (KPI + chart + list + form-list). -->
+<screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
+        default-menu-title="Dashboard Kit" default-menu-index="98"
+        menu-image="fa fa-dashboard" menu-image-type="icon">
+
+    <actions>
+        <script><![CDATA[
+            import groovy.json.JsonOutput
+            openCount = 14
+            doneCount = 128
+            backlogCount = 37
+            slaPct = 92
+            chartLabelsJson = JsonOutput.toJson(['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'])
+            chartDatasetsJson = JsonOutput.toJson([
+                [name: 'Opened', values: [8, 12, 9, 15, 11, 6, 4]],
+                [name: 'Closed', values: [5, 10, 11, 12, 14, 7, 5]]
+            ])
+            feedItemsJson = JsonOutput.toJson([
+                [title: 'Request REQ-1042 submitted', caption: 'Checkout · Facility A', meta: '2h', icon: 'assignment'],
+                [title: 'Asset AST-88 returned', caption: 'Serial SN-991', meta: '5h', icon: 'undo'],
+                [title: 'SLA warning on open queue', caption: '3 items over 48h', meta: '1d', icon: 'warning']
+            ])
+            demoRows = [
+                [itemId: 'REQ-1042', itemName: 'Checkout cart', statusId: 'Open', ownerName: 'Jane'],
+                [itemId: 'REQ-1038', itemName: 'Return laptop', statusId: 'In Progress', ownerName: 'John'],
+                [itemId: 'REQ-1031', itemName: 'New badge', statusId: 'Done', ownerName: 'Alex'],
+                [itemId: 'REQ-1020', itemName: 'Desk move', statusId: 'Open', ownerName: 'Sam']
+            ]
+        ]]></script>
+    </actions>
+
+    <widgets>
+        <label text="Dashboard Kit" type="h4"/>
+        <label text="Demo of m-dash-* components mixed with form-list. Sample data only." type="p"/>
+
+        <render-mode>
+            <text type="qvt" always-standalone="true"><![CDATA[
+<m-dash-filter-bar></m-dash-filter-bar>
+            ]]></text>
+        </render-mode>
+
+        <container-row>
+            <row-col md="3">
+                <render-mode>
+                    <text type="qvt" always-standalone="true"><![CDATA[
+<m-dash-stat title="Open" :value="${openCount}" delta="+3" delta-type="up" icon="pending_actions" color="primary"></m-dash-stat>
+                    ]]></text>
+                </render-mode>
+            </row-col>
+            <row-col md="3">
+                <render-mode>
+                    <text type="qvt" always-standalone="true"><![CDATA[
+<m-dash-stat title="Done" :value="${doneCount}" delta="+12" delta-type="up" icon="task_alt" color="positive"></m-dash-stat>
+                    ]]></text>
+                </render-mode>
+            </row-col>
+            <row-col md="3">
+                <render-mode>
+                    <text type="qvt" always-standalone="true"><![CDATA[
+<m-dash-stat title="Backlog" :value="${backlogCount}" delta="-2" delta-type="down" icon="inventory_2" color="warning"></m-dash-stat>
+                    ]]></text>
+                </render-mode>
+            </row-col>
+            <row-col md="3">
+                <render-mode>
+                    <text type="qvt" always-standalone="true"><![CDATA[
+<m-dash-stat title="SLA" :value="${slaPct}" subtitle="Last 30 days" icon="verified" color="info"></m-dash-stat>
+                    ]]></text>
+                </render-mode>
+            </row-col>
+        </container-row>
+
+        <container-row>
+            <row-col md="8">
+                <render-mode>
+                    <text type="qvt" always-standalone="true"><![CDATA[
+<m-dash-panel title="Weekly volume">
+  <m-dash-chart type="line" :labels='${chartLabelsJson}' :datasets='${chartDatasetsJson}' height="300px"></m-dash-chart>
+</m-dash-panel>
+                    ]]></text>
+                </render-mode>
+            </row-col>
+            <row-col md="4">
+                <render-mode>
+                    <text type="qvt" always-standalone="true"><![CDATA[
+<m-dash-panel title="Quota">
+  <m-dash-progress label="Monthly closes" :value="${doneCount}" :max="200" color="positive"></m-dash-progress>
+  <m-dash-progress label="Open capacity" :value="${openCount}" :max="40" color="primary"></m-dash-progress>
+</m-dash-panel>
+<m-dash-panel title="Activity">
+  <m-dash-list :items='${feedItemsJson}'></m-dash-list>
+</m-dash-panel>
+                    ]]></text>
+                </render-mode>
+            </row-col>
+        </container-row>
+
+        <container-box>
+            <box-header title="Recent items"/>
+            <box-body>
+                <form-list name="DemoItemList" list="demoRows" skip-form="true">
+                    <field name="itemId"><default-field title="Id"><display/></default-field></field>
+                    <field name="itemName"><default-field title="Name"><display/></default-field></field>
+                    <field name="statusId"><default-field title="Status"><display/></default-field></field>
+                    <field name="ownerName"><default-field title="Owner"><display/></default-field></field>
+                </form-list>
+            </box-body>
+        </container-box>
+    </widgets>
+</screen>

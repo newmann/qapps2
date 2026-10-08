@@ -3,13 +3,14 @@
 This software is in the public domain under CC0 1.0 Universal plus a
 Grant of Patent License.
 
-qapps2 login background: local login-bg/ files, else Wikimedia Commons POTD.
+qapps2 login background: local login-bg/ files, else the local WebGL nebula.
+Wikimedia Commons POTD fetch is temporarily disabled.
 -->
 <services xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
         xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/service-definition-3.xsd">
 
     <service verb="get" noun="LoginBackground" authenticate="false">
-        <description>Login page background: local qapps2static/login-bg files, else Commons Picture of the Day</description>
+        <description>Login page background: local qapps2static/login-bg files, else local nebula (Wikimedia POTD temporarily off)</description>
         <out-parameters>
             <parameter name="imageUrl"/>
             <parameter name="title"/>
@@ -22,21 +23,6 @@ qapps2 login background: local login-bg/ files, else Wikimedia Commons POTD.
         </out-parameters>
         <actions>
             <script><![CDATA[
-                import org.moqui.util.RestClient
-
-                def plain = { String s ->
-                    if (!s) return ''
-                    return s.replaceAll(/<[^>]+>/, '')
-                            .replaceAll('&nbsp;', ' ').replaceAll('&amp;', '&')
-                            .replaceAll('&quot;', '"').replaceAll('&#039;', "'")
-                            .replaceAll('&lt;', '<').replaceAll('&gt;', '>')
-                            .replaceAll(/\s+/, ' ').trim()
-                }
-                def licenseOk = { String lic ->
-                    String s = (lic ?: '').toLowerCase().replaceAll(/[\s_]+/, '-')
-                    return s.contains('cc-by') || s.contains('cc0') || s.startsWith('pd') ||
-                            s.contains('public-domain') || s.contains('publicdomain')
-                }
                 def applyBg = { Map bg ->
                     if (!bg) return
                     context.imageUrl = bg.imageUrl
@@ -75,6 +61,26 @@ qapps2 login background: local login-bg/ files, else Wikimedia Commons POTD.
                         ])
                         return
                     }
+                }
+
+                return
+
+                /* Wikimedia Commons POTD temporarily disabled; leave imageUrl empty
+                   so Login.ftl / Login.js keep the local WebGL nebula.
+                import org.moqui.util.RestClient
+
+                def plain = { String s ->
+                    if (!s) return ''
+                    return s.replaceAll(/<[^>]+>/, '')
+                            .replaceAll('&nbsp;', ' ').replaceAll('&amp;', '&')
+                            .replaceAll('&quot;', '"').replaceAll('&#039;', "'")
+                            .replaceAll('&lt;', '<').replaceAll('&gt;', '>')
+                            .replaceAll(/\s+/, ' ').trim()
+                }
+                def licenseOk = { String lic ->
+                    String s = (lic ?: '').toLowerCase().replaceAll(/[\s_]+/, '-')
+                    return s.contains('cc-by') || s.contains('cc0') || s.startsWith('pd') ||
+                            s.contains('public-domain') || s.contains('publicdomain')
                 }
 
                 String locTag = (ec.user.locale?.toLanguageTag() ?: 'en').toLowerCase()
@@ -161,6 +167,7 @@ qapps2 login background: local login-bg/ files, else Wikimedia Commons POTD.
                     ec.logger.warn("qapps2 login background Wikimedia fetch failed: ${t.message}${cause ? ' | ' + cause : ''}")
                     cache.put(cacheKey, [miss: true, checkedAt: System.currentTimeMillis()])
                 }
+                */
             ]]></script>
         </actions>
     </service>

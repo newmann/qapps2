@@ -20,6 +20,17 @@
             footer_scripts.add('/qapps2static/libs/quasar2/quasar.umd.prod.js')
             footer_scripts.add('/qapps2static/libs/quasar2/lang/zh-CN.umd.prod.js')
             footer_scripts.add('/qapps2static/js/WebrootVue.qvt2.js')
+            footer_scripts.add('/qapps2static/js/dash/DashShared.js')
+            footer_scripts.add('/qapps2static/js/dash/DashComponents.js')
+        }
+
+        // OpenUI Lang runtime for Assist only (full page /qapps2/assist). SPA navigation loads these from Assist.qvue.
+        // DashShared is already in CombinedQvt2 / non-prod footer so OpenUI can use moqui.qapps2Dash.
+        def assistPath = sri.screenUrlInfo?.fullPathNameList
+        if (assistPath != null && assistPath.contains('assist')) {
+            footer_scripts.add('/qapps2static/js/assist/lang-core.umd.min.js')
+            footer_scripts.add('/qapps2static/js/assist/AssistOpenUiLibrary.js')
+            footer_scripts.add('/qapps2static/js/assist/AssistOpenUi.js')
         }
     ]]></script></pre-actions>
 

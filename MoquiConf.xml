@@ -10,6 +10,13 @@
             <subscreens-item name="qapps2static" menu-include="false"
                     location="component://qapps2/screen/qapps2static.xml"/>
         </screen>
+        <!-- Overlay tools Assist: .qvue stays tools (Vue2); .qvue2 uses qapps2 Assist.qvue (Vue3). -->
+        <screen location="component://webroot/screen/webroot/apps.xml">
+            <subscreens-item name="assist" menu-title="Assist" menu-index="97"
+                    location="component://qapps2/screen/Assist.xml"/>
+            <subscreens-item name="dashboardKit" menu-title="Dashboard Kit" menu-index="98"
+                    location="component://qapps2/screen/DashboardKit.xml"/>
+        </screen>
 
         <screen-text-output type="qvt2" mime-type="text/html" always-standalone="true"
                 macro-template-location="component://qapps2/template/screen-macro/DefaultScreenMacros.qvt2.ftl"/>

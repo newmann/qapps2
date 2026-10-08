@@ -39,7 +39,17 @@ def fileMap = [
     "font-awesome/6.7.2/webfonts/fa-brands-400.woff2":"",
     "font-awesome/6.7.2/webfonts/fa-brands-400.ttf":"",
     "font-awesome/6.7.2/webfonts/fa-v4compatibility.woff2":"",
-    "font-awesome/6.7.2/webfonts/fa-v4compatibility.ttf":""
+    "font-awesome/6.7.2/webfonts/fa-v4compatibility.ttf":"",
+
+    // Lazy-loaded by WebrootVue.qvt2.js (m-chart / m-mermaid / m-simple-mde); keep off CDN.
+    "Chart.js/2.9.3/Chart.min.js":"",
+    "mermaid/9.3.0/mermaid.min.js":"",
+    "simplemde/1.11.2/simplemde.min.js":"",
+    "simplemde/1.11.2/simplemde.min.css":"",
+
+    // Assist OpenUI markdown / code blocks (AssistOpenUiLibrary.js)
+    "highlight.js/11.11.2/highlight.min.js":"",
+    "highlight.js/11.11.2/styles/github-dark.min.css":""
 ]
 
 def jsdelivrBase = "https://cdn.jsdelivr.net/npm/"
@@ -107,6 +117,25 @@ task downloadFiles { doLast {
         }
         stripSourceMappingUrl(targetFile)
     }
+
+    // CKEditor 4.14.1 — same npm package layout as webroot (plugins/skin/lang beside ckeditor.js).
+    File ckeditorJs = file(libsPath + "/ckeditor/ckeditor.js")
+    if (!ckeditorJs.exists()) {
+        File tgz = file("${buildDir}/ckeditor4-4.14.1.tgz")
+        tgz.getParentFile().mkdirs()
+        String ckUrl = "https://registry.npmjs.org/ckeditor4/-/ckeditor4-4.14.1.tgz"
+        logger.lifecycle("Downloading ${ckUrl}")
+        ant.get(src: ckUrl, dest: tgz)
+        File exploded = file("${buildDir}/ckeditor4-4.14.1")
+        ant.untar(src: tgz, dest: exploded, compression: "gzip")
+        File destDir = file(libsPath + "/ckeditor")
+        ant.copy(todir: destDir) {
+            fileset(dir: "${exploded}/package") {
+                exclude(name: "samples/**")
+                exclude(name: "adapters/**")
+            }
+        }
+    }
 } }
 
 def baseJs = []
@@ -120,6 +149,8 @@ qvt2Js.add(libsPath + '/vue3-sfc-loader/vue3-sfc-loader.js')
 qvt2Js.add(libsPath + '/quasar2/quasar.umd.prod.js')
 qvt2Js.add(libsPath + '/quasar2/lang/zh-CN.umd.prod.js')
 qvt2Js.add(staticPath + '/js/WebrootVue.qvt2.min.js')
+qvt2Js.add(staticPath + '/js/dash/DashShared.min.js')
+qvt2Js.add(staticPath + '/js/dash/DashComponents.min.js')
 
 task minifyJsDir(type: org.gradlewebtools.minify.JsMinifyTask) {
     // see: https://github.com/gradle-webtools/gradle-minify-plugin

@@ -110,7 +110,10 @@ flowchart LR
 ### 6.3 导航与 Assist
 
 - 将 SimpleScreens 的 `MyAccountNav.qvue`、`ActiveOrgNav.qvue`、`QuickSearch.qvue` **复制进本组件** 再适配（可保留 `module.exports`）
-- 不改 tools `Assist.qvue` / WriteUiTool；挂 Assist.xml 时用 `.qvt2` 宏渲染
+- 不改 tools `Assist.qvue` / WriteUiTool 源文件；用本组件 `MoquiConf` 覆盖
+  `/apps/assist`：`qvue` → tools（Vue2），`qvue2` → 本组件 `Assist.qvue`（Vue3）
+- OpenUI 运行时在 `qapps2static/js/assist/`（Vue3 移植），由 `qapps2.xml` /
+  `Assist.qvue` 加载；上游同步见 `doc/upstream-qapps-sync.md`
 - QZ 打印本轮不迁
 
 ## 7. 明确不改

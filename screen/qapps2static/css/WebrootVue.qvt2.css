@@ -215,9 +215,20 @@ form.q-form { width: 100%; }
 .q-field__prepend { max-width: 75%; }
 .q-field__marginal .q-checkbox__label { font-size: 10px; }
 
+/* Quasar 2.27 keeps .q-field__bottom in normal flow whenever rules exist.
+   m-drop-down always has rules, so the extra line lifts the control in a
+   middle-aligned form-list cell. Reserve that space only on error. */
 .q-field--with-bottom { padding-bottom: 0; }
-.q-field--with-bottom.q-field--error { padding-bottom: 16px; }
-.q-field__bottom { padding-top: 4px; }
+.q-field--with-bottom.q-field--error { padding-bottom: 0; }
+.q-field__bottom { min-height: 0; height: 0; padding: 0; overflow: hidden; }
+.q-field--error .q-field__bottom { height: auto; min-height: 20px; padding: 4px 12px 0; overflow: visible; }
+
+/* Single dense q-select is auto-height and its filter input (padding 6px, line-height 28px)
+   grows past the 40px q-input. Pin the outline and drop the extra input padding.
+   Multiple selects keep auto-height so chips can wrap. */
+.q-select.q-field--dense:not(.q-select--multiple) .q-field__control,
+.q-select.q-field--dense:not(.q-select--multiple) .q-field__marginal { height: 40px; min-height: 40px; }
+.q-select.q-field--dense:not(.q-select--multiple) .q-field__input { padding-top: 0; padding-bottom: 0; line-height: 24px; }
 
 .q-item__section--avatar { min-width: 30px; }
 .q-drawer .q-item__section--side { padding-right: 8px; }
@@ -573,3 +584,23 @@ body.Login, body.Login #content { background: #05070d; min-height: 100vh; }
 .qapps2-md pre { overflow:auto; background:var(--qapps2-surface-alt); padding:8px; }
 .qapps2-md code { font-family:monospace; }
 .qapps2-md img { max-width:100%; }
+
+/* ====== Dashboard kit (m-dash-* / OpenUI Stat) ====== */
+.m-dash-stat {
+    height: 100%;
+    min-height: 6.5rem;
+    box-sizing: border-box;
+}
+.m-dash-stat--link { cursor: pointer; }
+.m-dash-stat--link:hover { border-color: var(--q-primary); }
+.m-dash-stat__label { letter-spacing: 0.02em; margin-bottom: 2px; }
+.m-dash-stat__value { line-height: 1.15; font-weight: 600; word-break: break-word; }
+.m-dash-stat__delta { margin-top: 2px; font-weight: 500; }
+.m-dash-stat__caption { margin-top: 4px; color: var(--qapps2-text-muted, #757575); }
+.m-dash-stat__icon { opacity: 0.9; }
+.m-dash-panel { overflow: hidden; }
+.m-dash-panel__header { min-height: 2.5rem; }
+.m-dash-chart canvas { max-width: 100%; }
+.m-dash-list { background: var(--qapps2-surface, #fff); }
+.m-dash-filter-bar { flex-wrap: wrap; }
+.m-dash-progress .q-linear-progress { border-radius: 4px; }

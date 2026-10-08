@@ -1,0 +1,1933 @@
+<!-- qapps2 Vue 3 / Quasar 2 overlay of tools Assist.qvue; do not edit tools copy. -->
+<template>
+<div class="assist-root">
+    <div class="row items-center q-mb-sm q-col-gutter-sm">
+        <div class="col-auto">
+            <q-btn-toggle dense unelevated v-model="writeMode" :options="writeModeOptions"
+                          toggle-color="primary" @update:model-value="persistWriteMode"></q-btn-toggle>
+        </div>
+        <div class="col-auto">
+            <q-toggle dense v-model="forceSkillUse" label="Force Skill Use"
+                      @update:model-value="persistForceSkillUse"></q-toggle>
+        </div>
+        <div class="col text-caption text-grey-7">{{ writeModeHint }}</div>
+        <div class="col-auto">
+            <q-btn dense outline no-caps :label="chatOnLeft ? 'Chat | Screen' : 'Screen | Chat'"
+                   @click="toggleSide"></q-btn>
+        </div>
+        <div class="col-auto">
+            <q-btn id="assist-conversations" dense outline no-caps icon="history" label="Chats"
+                   @click="toggleConvDrawer"></q-btn>
+        </div>
+        <div class="col-auto">
+            <q-btn id="assist-source" dense outline no-caps icon="open_in_new" label="Source" :disable="!schema"
+                   @click="sourceOpen = true"></q-btn>
+        </div>
+        <div class="col-auto">
+            <q-btn dense outline no-caps label="New" @click="newSession"></q-btn>
+        </div>
+        <div class="col-auto">
+            <q-btn dense outline no-caps color="negative" label="Cancel" :disable="!streaming" @click="cancelTurn"></q-btn>
+        </div>
+    </div>
+    <q-tabs v-if="isMobile" v-model="mobileTab" dense class="text-primary">
+        <q-tab name="chat" label="Chat"></q-tab>
+        <q-tab name="screen" label="Screen"></q-tab>
+    </q-tabs>
+    <q-splitter v-model="splitterPct" class="assist-split" :class="splitClass" style="height: calc(100vh - 140px)">
+        <template v-slot:before>
+            <div ref="paneBefore" class="assist-pane-host"></div>
+        </template>
+        <template v-slot:after>
+            <div ref="paneAfter" class="assist-pane-host"></div>
+        </template>
+    </q-splitter>
+    <!-- Quasar sizes the before panel and treats it as the left side. The panes are moved into
+         that order so a rightward drag grows the left pane. Row-reverse made the drag run backwards. -->
+    <div ref="paneHolder" class="assist-pane-holder">
+            <div ref="chatPane" class="assist-pane assist-chat q-pa-sm column" style="height:100%">
+                <div class="col overflow-auto" style="min-height:0">
+                    <div v-for="(m, i) in messages" :key="i" class="q-mb-sm">
+                        <div v-if="m.role!=='tool' && m.role!=='done'" class="text-caption text-grey-7">{{ m.role }}<span v-if="m.name"> {{ m.name }}</span></div>
+                        <div v-if="m.role==='tool'" class="text-caption">{{ m.kind }} {{ m.name }}<span v-if="toolSummary(m)"> — {{ toolSummary(m) }}</span></div>
+                        <div v-else-if="m.role==='done'" class="text-caption text-grey-7">{{ m.content }}</div>
+                        <div v-else-if="m.pending && !String(m.content || '').trim()"
+                             class="assist-wait" :class="{ 'assist-wait-go': m.connected }" role="status"
+                             :aria-label="m.connected ? 'Waiting for the model' : 'Connecting'"><div></div></div>
+                        <div v-else style="white-space:pre-wrap">{{ m.content }}</div>
+                    </div>
+                </div>
+                <div class="col-auto q-pt-sm">
+                    <q-input id="assist-composer" outlined autogrow v-model="composer" placeholder="Describe what you need"
+                             @keyup.enter.exact.prevent="send" :disable="streaming">
+                        <template v-slot:append>
+                            <q-btn v-if="speechSupported" flat round dense :icon="recognizing ? 'mic' : 'mic_none'"
+                                   @click="toggleMic"></q-btn>
+                            <q-btn id="assist-send" flat round dense icon="send" :disable="streaming || !composer"
+                                   @click="send"></q-btn>
+                        </template>
+                    </q-input>
+                </div>
+            </div>
+            <div ref="canvasPane" class="assist-pane assist-canvas column" style="height:100%">
+                <div v-if="pendingConfirm()" class="q-pa-md">
+                    <div class="text-subtitle1">Confirm this action</div>
+                    <div class="text-body2 q-mb-md" style="white-space:pre-wrap">{{ confirmSummary(pendingConfirm()) }}</div>
+                    <div class="assist-actions">
+                        <q-btn id="assist-confirm" unelevated color="primary" no-caps label="Confirm"
+                               :disable="streaming" @click="confirmTool(true)"></q-btn>
+                        <q-btn id="assist-confirm-cancel" outline no-caps label="Cancel"
+                               :disable="streaming" @click="confirmTool(false)"></q-btn>
+                    </div>
+                </div>
+                <div v-if="!schema && !pendingConfirm()" class="text-grey-7 q-pa-md">
+                    Describe what you need. Assist will build a screen here.</div>
+                <div v-else-if="schema" class="col overflow-auto assist-canvas-body">
+                    <div class="text-h6">{{ schema.title }}</div>
+                    <div v-if="schema.instruction" class="text-body2 q-mb-md">{{ schema.instruction }}</div>
+                    <div v-if="schema.langError && !showOpenUi && !showFormWidgets" class="text-negative q-mb-md">{{ schema.langError }}</div>
+                    <div v-if="(schema.actions||[]).length" class="q-mb-md">
+                        <div class="text-subtitle2">On submit</div>
+                        <ul class="q-pl-md">
+                            <li v-for="a in schema.actions" :key="a.id">
+                                {{ a.label || a.id }} — {{ a.method }} {{ a.path }}</li>
+                        </ul>
+                    </div>
+                    <div v-if="showOpenUi" class="q-mb-md">
+                        <assist-openui :lang="schema.lang" :streaming="streaming" :mode="writeMode"
+                                       :csrf="csrf" :app-root="($root && $root.appRootPath) || ''"
+                                       :initial-state="fieldValues"
+                                       @action="onOpenUiAction" @state-update="onOpenUiState"
+                                       @error="onOpenUiError" @request-notice="onOpenUiRequestNotice"></assist-openui>
+                    </div>
+                    <div v-if="showVueSfc" class="q-mb-md">
+                        <component :is="vueSfcComp" :key="vueSfcKey"
+                                   :values="fieldValues" :schema="schema" :mode="writeMode"
+                                   @input="onSfcInput" @submit="onSfcSubmit" @cancel="newSession"></component>
+                    </div>
+                    <div v-else-if="schema.kind==='vue-sfc' && !vueSfcFailed" class="text-grey-7 q-mb-md">
+                        Loading generated screen…</div>
+                    <div v-if="showFormWidgets && (schema.columns||[]).length" class="q-mb-md">
+                        <table class="q-table">
+                            <thead><tr>
+                                <th v-for="c in schema.columns" :key="c.name">{{ c.label || c.name }}</th>
+                            </tr></thead>
+                            <tbody>
+                                <tr v-for="(row, ri) in (schema.rows||[])" :key="ri">
+                                    <td v-for="c in schema.columns" :key="c.name">{{ row[c.name] }}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div v-if="showFormWidgets" v-for="f in visibleFields" :key="f.name" class="q-mb-sm" :data-field="f.name">
+                        <m-text-line v-if="f.widget==='text-line' || f.widget==='hidden'" dense outlined
+                                     :label="f.label || f.name" :value="fieldValues[f.name]"
+                                     @input="onFieldInput(f.name, $event)"
+                                     :type="f.widget==='hidden' ? 'hidden' : 'text'"
+                                     :name="f.name"
+                                     :tooltip="f.help"></m-text-line>
+                        <q-input v-else-if="f.widget==='text-area'" dense outlined autogrow type="textarea"
+                                 stack-label :label="f.label || f.name" :value="fieldValues[f.name]"
+                                 @input="onFieldInput(f.name, $event)" :hint="f.help" :name="f.name"></q-input>
+                        <q-select v-else-if="f.widget==='drop-down' && (f.options||[]).length" dense outlined emit-value map-options
+                                  :options="f.options || []" option-value="key" option-label="text"
+                                  stack-label :label="f.label || f.name" :value="fieldValues[f.name]"
+                                  @input="onFieldInput(f.name, $event)"></q-select>
+                        <m-text-line v-else-if="f.widget==='drop-down'" dense outlined
+                                     :label="f.label || f.name" :value="fieldValues[f.name]"
+                                     @input="onFieldInput(f.name, $event)" :name="f.name"
+                                     :tooltip="f.help"></m-text-line>
+                        <m-date-time v-else-if="f.widget==='date-time'" :name="f.name" :label="f.label || f.name"
+                                     :type="f.widgetType || 'date-time'" :value="fieldValues[f.name]"
+                                     @input="onFieldInput(f.name, $event)"></m-date-time>
+                        <q-checkbox v-else-if="f.widget==='check'" :label="f.label || f.name"
+                                    :value="fieldValues[f.name]"
+                                    @input="onFieldInput(f.name, $event)"></q-checkbox>
+                        <div v-else-if="f.widget==='radio'">
+                            <div class="text-caption text-grey-7">{{ f.label || f.name }}</div>
+                            <q-option-group dense type="radio" :value="fieldValues[f.name]"
+                                            :options="radioOptions(f)"
+                                            @input="onFieldInput(f.name, $event)"></q-option-group>
+                        </div>
+                        <div v-else class="text-body2"><span class="text-grey-7">{{ f.label || f.name }}:</span> {{ fieldValues[f.name] }}</div>
+                    </div>
+                    <div v-if="canvasNotices.length" id="assist-canvas-notices" class="q-mb-md">
+                        <div class="text-subtitle2">Problems with this screen</div>
+                        <ul class="q-pl-md q-mb-none">
+                            <li v-for="(n, ni) in canvasNotices" :key="'cn'+ni"
+                                :class="n.kind==='error' ? 'text-negative' : ''">{{ n.message }}<span v-if="n.count && n.count > 1"> (×{{ n.count }})</span></li>
+                        </ul>
+                    </div>
+                    <div v-if="showParentSubmit" class="assist-actions">
+                        <q-btn id="assist-submit" unelevated color="primary" no-caps
+                               :label="primaryLabel" :disable="streaming"
+                               @click="submitCanvas(primaryId)"></q-btn>
+                        <q-btn id="assist-adjust" outline no-caps icon="open_in_new" label="Adjust"
+                               :disable="streaming || !!pendingConfirm()" @click="adjustOpen = true"></q-btn>
+                        <q-btn outline no-caps :label="schema.cancelLabel || 'Cancel'"
+                               @click="newSession"></q-btn>
+                    </div>
+                    <div v-else class="assist-actions">
+                        <q-btn id="assist-adjust" outline no-caps icon="open_in_new" label="Adjust"
+                               :disable="streaming || !!pendingConfirm()" @click="adjustOpen = true"></q-btn>
+                        <q-btn outline no-caps :label="schema.cancelLabel || 'Cancel'"
+                               @click="newSession"></q-btn>
+                    </div>
+                </div>
+            </div>
+    </div>
+    <q-dialog id="assist-adjust-dialog" v-model="adjustOpen">
+        <q-card style="min-width:360px; max-width:560px; width:92vw">
+            <q-card-section>
+                <div class="text-h6">Adjust this screen</div>
+            </q-card-section>
+            <q-card-section class="q-pt-none">
+                <div class="text-body2 q-mb-md">Describe what to change, or what is not working. Assist will revise the screen that is on the canvas now. This does not submit the form.</div>
+                <div v-if="canvasNotices.length" class="q-mb-md">
+                    <div class="text-subtitle2">Problems with this screen</div>
+                    <ul class="q-pl-md q-mb-none">
+                        <li v-for="(n, ni) in canvasNotices" :key="ni"
+                            :class="n.kind==='error' ? 'text-negative' : ''">{{ n.message }}<span v-if="n.count && n.count > 1"> (×{{ n.count }})</span></li>
+                    </ul>
+                </div>
+                <q-input id="assist-adjust-text" outlined autogrow type="textarea" v-model="adjustText"
+                         placeholder="What should be different?"></q-input>
+            </q-card-section>
+            <q-card-actions align="right">
+                <q-btn flat no-caps label="Cancel" v-close-popup></q-btn>
+                <q-btn id="assist-adjust-submit" unelevated color="primary" no-caps label="Adjust"
+                       :disable="streaming || !(adjustText && adjustText.trim())" @click="submitAdjust"></q-btn>
+            </q-card-actions>
+        </q-card>
+    </q-dialog>
+    <div v-if="convDrawer" class="assist-conv-backdrop" @click="convDrawer = false"></div>
+    <div v-if="convDrawer" id="assist-conv-drawer" class="assist-conv-drawer column"
+         :class="chatOnLeft ? 'assist-conv-left' : 'assist-conv-right'">
+        <div class="row items-center q-pa-sm">
+            <div class="col text-subtitle1">Chats</div>
+            <q-btn flat round dense icon="close" @click="convDrawer = false"></q-btn>
+        </div>
+        <div class="q-px-sm q-pb-sm">
+            <q-input id="assist-conv-search" dense outlined v-model="convSearch"
+                     placeholder="Search (3+ letters for the message)" @input="onConvSearch"></q-input>
+        </div>
+        <div class="col overflow-auto">
+            <div v-if="!conversations.length" class="text-grey-7 q-pa-md">No conversations</div>
+            <div v-for="row in conversations" :key="row.conversationId"
+                 class="assist-conv-row q-px-sm q-py-xs cursor-pointer"
+                 :class="{ 'assist-conv-open': row.conversationId === conversationId }"
+                 @click="openConversation(row.conversationId)">
+                <div class="row items-start no-wrap">
+                    <div class="col">
+                        <div class="text-body2">{{ row.summary || row.title || 'New conversation' }}</div>
+                        <div class="text-caption text-grey-7">
+                            Started {{ formatWhen(row.createdDate) }}
+                            <span v-if="row.lastMessageDate"> · Updated {{ formatWhen(row.lastMessageDate) }}</span>
+                        </div>
+                        <div class="text-caption text-grey-7">
+                            {{ convStatusLabel(row.status) }}
+                            <span v-if="row.messageCount != null"> · {{ row.messageCount }} messages</span>
+                            <span v-if="row.hasCanvas"> · Canvas</span>
+                        </div>
+                    </div>
+                    <q-btn flat round dense icon="delete" color="negative"
+                           :disable="streaming && row.conversationId === conversationId"
+                           @click.stop="askDelete(row)"></q-btn>
+                </div>
+            </div>
+        </div>
+        <div v-if="convPages > 1" class="row justify-center q-pa-sm">
+            <q-pagination :value="convPageIndex + 1" :max="convPages" :max-pages="6" direction-links
+                          @input="onConvPage"></q-pagination>
+        </div>
+    </div>
+    <q-dialog id="assist-source-dialog" v-model="sourceOpen">
+        <q-card style="min-width:360px; max-width:720px; width:92vw">
+            <q-card-section>
+                <div class="text-h6">Canvas source</div>
+            </q-card-section>
+            <q-card-section class="q-pt-none">
+                <div class="row items-center q-mb-xs">
+                    <div class="col text-subtitle2">Source</div>
+                    <q-btn flat dense no-caps label="Copy" :disable="!sourceText" @click="copyText(sourceText)"></q-btn>
+                </div>
+                <pre class="assist-source-pre">{{ sourceText || 'No source' }}</pre>
+                <div v-if="submitScriptText" class="q-mt-md">
+                    <div class="row items-center q-mb-xs">
+                        <div class="col text-subtitle2">Submit script</div>
+                        <q-btn flat dense no-caps label="Copy" @click="copyText(submitScriptText)"></q-btn>
+                    </div>
+                    <pre class="assist-source-pre">{{ submitScriptText }}</pre>
+                </div>
+            </q-card-section>
+            <q-card-actions align="right">
+                <q-btn flat no-caps label="Close" v-close-popup></q-btn>
+            </q-card-actions>
+        </q-card>
+    </q-dialog>
+    <q-dialog v-model="deleteOpen">
+        <q-card style="min-width:320px">
+            <q-card-section>
+                <div class="text-h6">Delete conversation</div>
+            </q-card-section>
+            <q-card-section class="q-pt-none">{{ deletePrompt }}</q-card-section>
+            <q-card-actions align="right">
+                <q-btn flat no-caps label="Cancel" v-close-popup></q-btn>
+                <q-btn id="assist-conv-delete" unelevated color="negative" no-caps label="Delete"
+                       @click="deleteConversation"></q-btn>
+            </q-card-actions>
+        </q-card>
+    </q-dialog>
+</div>
+</template>
+<script>
+/* Assist Universal Screen (qapps2). Canvas kinds: form spec, vue-sfc (moqui.parseSfc).
+ * FUTURE: screen-xml POST to a compile/render transition (server round-trip).
+ */
+function parseSseChunk(buffer, onEvent) {
+    var parts = buffer.split('\n\n');
+    var rest = parts.pop();
+    for (var i = 0; i < parts.length; i++) {
+        var block = parts[i];
+        if (!block || !block.trim()) continue;
+        var event = 'message', data = '';
+        var lines = block.split('\n');
+        for (var j = 0; j < lines.length; j++) {
+            var line = lines[j];
+            if (line.indexOf('event:') === 0) event = line.slice(6).trim();
+            else if (line.indexOf('data:') === 0) data += line.slice(5).trim();
+        }
+        var parsed = data;
+        try { parsed = JSON.parse(data); } catch (e) { /* keep string */ }
+        onEvent(event, parsed);
+    }
+    return rest;
+}
+var CONV_STORAGE_KEY = 'assist.conversationId';
+function formatWhen(ms) {
+    if (ms == null || ms === '') return '';
+    var n = typeof ms === 'number' ? ms : Number(ms);
+    if (!n) return '';
+    try { return new Date(n).toLocaleString(); } catch (e) { return ''; }
+}
+function convStatusLabel(status) {
+    if (!status) return '';
+    return String(status).replace(/^Llmcs/, '');
+}
+function historyToMessages(history) {
+    var out = [];
+    (history || []).forEach(function(m) {
+        if (!m || m.role === 'system' || m.role === 'context') return;
+        if (m.role === 'tool') {
+            out.push({ role: 'tool', kind: 'result', name: m.name, content: m.content, toolCallId: m.toolCallId });
+            return;
+        }
+        if (m.role === 'assistant' && m.toolCalls && m.toolCalls.length) {
+            if (m.content) out.push({ role: 'assistant', content: m.content });
+            m.toolCalls.forEach(function(c) {
+                if (!c) return;
+                out.push({ role: 'tool', kind: 'call', name: c.name, arguments: c.arguments, summary: c.summary });
+            });
+            return;
+        }
+        out.push({ role: m.role, content: m.content || '', name: m.name });
+    });
+    return out;
+}
+function canvasSourceText(schema) {
+    if (!schema) return '';
+    if (schema.lang) return schema.lang;
+    if (schema.kind === 'vue-sfc') return assembleSfc(schema);
+    var rows = schema.rows || [];
+    var copy = {
+        kind: schema.kind, title: schema.title, instruction: schema.instruction,
+        fields: schema.fields, columns: schema.columns, actions: schema.actions
+    };
+    if (rows.length > 20) {
+        copy.rows = rows.slice(0, 20);
+        copy.rowsOmitted = rows.length - 20;
+    } else if (rows.length) copy.rows = rows;
+    return JSON.stringify(copy, null, 2);
+}
+function canvasSubmitText(schema) {
+    if (!schema) return '';
+    var parts = [];
+    var assembled = schema.kind === 'vue-sfc' ? assembleSfc(schema) : '';
+    if (schema.script && assembled.indexOf(schema.script) < 0) parts.push(schema.script);
+    (schema.actions || []).forEach(function(a) {
+        if (!a) return;
+        var line = (a.method || '') + ' ' + (a.path || '');
+        if (a.body) line += '\n' + JSON.stringify(a.body, null, 2);
+        else if (a.bodyFromFields && a.bodyFromFields.length)
+            line += '\nbodyFromFields: ' + a.bodyFromFields.join(', ');
+        parts.push(line.trim());
+    });
+    return parts.filter(function(p) { return p; }).join('\n\n');
+}
+var HTML_ACTION_ERROR = 'HTML screens are not valid tool results. Use /apps (not /qapps or /qapps2). GET {screen}/actions for screen JSON, GET {screen}/actions/{formListName} for form-list rows (browse jsonPath), or POST {screen}/{transitionName} for a named transition from browse (not /actions/{transition})';
+var ADJUST_INSTRUCTION = 'The user wants this screen changed or fixed. Do not submit it and do not run its actions. Call write_ui again so the screen matches the feedback. canvas is the screen they are looking at now, including field values they typed. notices are render errors and server messages from canvas requests (validation errors, service errors, warnings); fix those too. A validation error means the value sent was rejected: drop a timestamp the service defaults, or send YYYY-MM-DD HH:mm. For a small OpenUI change, set writeThrough true and send only the changed statements. If the screen failed to render or the structure is wrong, send a full lang program.';
+/** Same rules as AssistOpenUi.js screenResponseProblems. A transition can return HTTP 200 plus screenUrl when the service rejected the input. */
+function screenResponseProblems(parsed) {
+    if (typeof window.assistScreenResponseProblems === 'function')
+        return window.assistScreenResponseProblems(parsed);
+    var errors = [];
+    var warnings = [];
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed))
+        return { errors: errors, warnings: warnings };
+    var val = parsed.validationErrors;
+    if (Array.isArray(val)) {
+        for (var i = 0; i < val.length; i++) {
+            var ve = val[i] || {};
+            var msg = ve.message ? String(ve.message) : 'Validation error';
+            var field = ve.fieldPretty || ve.field;
+            var svc = ve.serviceNamePretty || ve.serviceName;
+            var extra = [];
+            if (field) extra.push('for field ' + field);
+            if (svc) extra.push('of service ' + svc);
+            if (extra.length) msg += ' (' + extra.join(' ') + ')';
+            errors.push(msg);
+        }
+    }
+    var errs = parsed.errors;
+    if (Array.isArray(errs)) {
+        for (var e = 0; e < errs.length; e++) if (errs[e]) errors.push(String(errs[e]));
+    }
+    var infos = parsed.messageInfos;
+    if (Array.isArray(infos)) {
+        for (var m = 0; m < infos.length; m++) {
+            var info = infos[m] || {};
+            if (!info.message) continue;
+            var type = String(info.type || '').toLowerCase();
+            if (type === 'danger' || type === 'error') errors.push(String(info.message));
+            else if (type === 'warning') warnings.push(String(info.message));
+        }
+    }
+    return { errors: errors, warnings: warnings };
+}
+var RESPONSE_ENVELOPE = { screenPathList: 1, screenParameters: 1, screenUrl: 1, redirectUrl: 1,
+    currentParameters: 1, messageInfos: 1, errors: 1, validationErrors: 1 };
+function isHtmlBody(text, contentType) {
+    if (contentType && String(contentType).toLowerCase().indexOf('html') >= 0) return true;
+    if (text == null) return false;
+    var t = String(text).trim();
+    if (!t) return false;
+    var head = t.length > 32 ? t.slice(0, 32).toLowerCase() : t.toLowerCase();
+    return head.indexOf('<!doctype') === 0 || head.indexOf('<html') === 0
+        || head.indexOf('<body') === 0 || head.indexOf('<head') === 0;
+}
+function validateActionPath(path) {
+    if (window.AssistOpenUiNav && typeof window.AssistOpenUiNav.validatePath === 'function')
+        return window.AssistOpenUiNav.validatePath(path);
+    if (!path || path.charAt(0) !== '/') return 'path must start with /';
+    if (/[\s\\\u0000-\u001f]/.test(path)) return 'path must not contain whitespace or backslash';
+    if (path.indexOf('://') >= 0 || path.indexOf('//') === 0) return 'path must not contain a host';
+    if (path.indexOf('..') >= 0) return 'path must not contain ..';
+    var lower = String(path).toLowerCase();
+    if (lower.indexOf('javascript:') >= 0 || lower.indexOf('data:') >= 0) return 'path scheme not allowed';
+    return null;
+}
+function unescapeHtml(s) {
+    if (s == null || s === '') return s;
+    return String(s).replace(/&amp;/g, '&').replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'");
+}
+function scalarValue(v) {
+    if (v == null) return '';
+    if (typeof v === 'object') {
+        if (v.value != null && typeof v.value !== 'object') return unescapeHtml(String(v.value));
+        var keys = Object.keys(v);
+        if (keys.length === 1 && typeof v[keys[0]] !== 'object') return unescapeHtml(String(v[keys[0]]));
+        return '';
+    }
+    return unescapeHtml(String(v));
+}
+function assistDateKind(type) {
+    return (type === 'date' || type === 'time') ? type : 'date-time';
+}
+function assistDateMatches(text, kind) {
+    if (kind === 'date') return /^\d{4}-\d{2}-\d{2}$/.test(text);
+    if (kind === 'time') return /^\d{2}:\d{2}$/.test(text);
+    return /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(text);
+}
+function assistPad(n) { return (n < 10 ? '0' : '') + n; }
+function assistFormatDateMs(ms, kind) {
+    var d = new Date(ms);
+    if (isNaN(d.getTime())) return '';
+    if (kind === 'time') return assistPad(d.getHours()) + ':' + assistPad(d.getMinutes());
+    var day = d.getFullYear() + '-' + assistPad(d.getMonth() + 1) + '-' + assistPad(d.getDate());
+    if (kind === 'date') return day;
+    return day + ' ' + assistPad(d.getHours()) + ':' + assistPad(d.getMinutes());
+}
+function assistEpochMillis(text) {
+    if (!/^-?\d{10,13}$/.test(text)) return null;
+    var n = Number(text);
+    if (!isFinite(n)) return null;
+    var abs = Math.abs(n);
+    if (abs >= 100000000000) return n;
+    if (abs >= 1000000000) return n * 1000;
+    return null;
+}
+function assistParseDateText(text) {
+    var m = /^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2})(?::(\d{2}))?)?$/.exec(text);
+    if (m) {
+        var d = new Date(+m[1], +m[2] - 1, +m[3], m[4] != null ? +m[4] : 0, m[5] != null ? +m[5] : 0, m[6] != null ? +m[6] : 0);
+        if (!isNaN(d.getTime())) return d.getTime();
+    }
+    var t = /^(\d{2}):(\d{2})(?::(\d{2}))?$/.exec(text);
+    if (t) {
+        var clock = new Date();
+        clock.setHours(+t[1], +t[2], t[3] != null ? +t[3] : 0, 0);
+        return clock.getTime();
+    }
+    if (text.indexOf('T') > 0 || /Z$|[+-]\d{2}:\d{2}$/.test(text)) {
+        var p = Date.parse(text);
+        if (!isNaN(p)) return p;
+    }
+    return null;
+}
+/** m-date-time mask is YYYY-MM-DD HH:mm. Epoch millis/seconds and now become that string in the browser zone. */
+function assistFormatDateValue(value, type) {
+    if (value == null || value === '') return '';
+    if (typeof value === 'object') return '';
+    var kind = assistDateKind(type);
+    var text = String(value).trim();
+    if (text.toLowerCase() === 'now') return assistFormatDateMs(Date.now(), kind);
+    if (assistDateMatches(text, kind)) return text;
+    var ms = assistEpochMillis(text);
+    if (ms == null) ms = assistParseDateText(text);
+    if (ms == null) return text;
+    return assistFormatDateMs(ms, kind);
+}
+function subst(str, bag) {
+    if (!str || !bag) return str;
+    return String(str).replace(/\{([a-zA-Z0-9_.]+)\}/g, function(m, k) {
+        return bag[k] != null ? bag[k] : m;
+    });
+}
+function stripSfcFences(s) {
+    if (s == null) return s;
+    var t = String(s).trim();
+    if (t.indexOf('```') === 0) {
+        var nl = t.indexOf('\n');
+        if (nl > 0) t = t.slice(nl + 1);
+        if (t.slice(-3) === '```') t = t.slice(0, -3);
+        t = t.trim();
+    }
+    return t;
+}
+function startsWithTag(s, tag) {
+    if (!s) return false;
+    var t = String(s).trim();
+    return t.charAt(0) === '<' && t.slice(1, 1 + tag.length).toLowerCase() === tag;
+}
+function assembleSfc(schema) {
+    if (!schema) return '';
+    if (schema.sfc) return stripSfcFences(schema.sfc);
+    var template = schema.template, script = schema.script, style = schema.style;
+    if (!template && !script && !style) return '';
+    var parts = [];
+    if (template) {
+        var t = String(template).trim();
+        parts.push(startsWithTag(t, 'template') ? t : '<template>\n' + template + '\n</template>');
+    }
+    var scriptClose = '<' + '/script>';
+    if (script) {
+        var sc = String(script).trim();
+        parts.push(startsWithTag(sc, 'script') ? sc : '<script>\n' + script + '\n' + scriptClose);
+    } else parts.push('<script>\nmodule.exports = {}\n' + scriptClose);
+    if (style) {
+        var st = String(style).trim();
+        parts.push(startsWithTag(st, 'style') ? st : '<style>\n' + style + '\n</style>');
+    }
+    return parts.join('\n');
+}
+function hashString(s) {
+    var h = 0;
+    if (!s) return '0';
+    for (var i = 0; i < s.length; i++) h = ((h << 5) - h) + s.charCodeAt(i) | 0;
+    return String(h);
+}
+function isWriteUiArgs(args) {
+    return !!(args && (args.fields || args.columns || args.sfc || args.template || args.lang
+            || args.kind === 'form' || args.kind === 'vue-sfc' || args.kind === 'openui'));
+}
+function extractOpenUiLang(partialArgs) {
+    if (!partialArgs) return null;
+    if (typeof partialArgs === 'object' && partialArgs.lang) return String(partialArgs.lang);
+    var s = String(partialArgs);
+    try {
+        var parsed = JSON.parse(s);
+        if (parsed && parsed.lang) return String(parsed.lang);
+    } catch (e) { /* incomplete JSON */ }
+    var m = /"lang"\s*:\s*"/.exec(s);
+    if (!m) return null;
+    var i = m.index + m[0].length, out = [];
+    for (; i < s.length; i++) {
+        var c = s.charAt(i);
+        if (c === '\\' && i + 1 < s.length) {
+            var n = s.charAt(++i);
+            if (n === 'n') out.push('\n');
+            else if (n === 't') out.push('\t');
+            else if (n === '"') out.push('"');
+            else if (n === '\\') out.push('\\');
+            else out.push(n);
+        } else if (c === '"') break;
+        else out.push(c);
+    }
+    return out.join('');
+}
+/** Same ?v= the shell already puts on scripts via ec.web.getResourceDistinctValue(). */
+function pageResourceVersion() {
+    var nodes = document.querySelectorAll('script[src*="?v="],link[href*="?v="]');
+    for (var i = 0; i < nodes.length; i++) {
+        var url = nodes[i].getAttribute('src') || nodes[i].getAttribute('href') || '';
+        var m = url.match(/[?&]v=([A-Za-z0-9._-]+)/);
+        if (m) return m[1];
+    }
+    return '';
+}
+function loadScriptOnce(src) {
+    return new Promise(function(resolve, reject) {
+        if (document.querySelector('script[data-assist-src="' + src + '"]') ||
+                document.querySelector('script[src^="' + src + '"]')) {
+            resolve(); return;
+        }
+        var s = document.createElement('script');
+        s.src = src;
+        s.async = false;
+        s.setAttribute('data-assist-src', src);
+        s.onload = function() { resolve(); };
+        s.onerror = function() { reject(new Error('Failed to load ' + src)); };
+        document.head.appendChild(s);
+    });
+}
+function sensitiveArgKey(k) {
+    if (!k) return false;
+    var l = String(k).toLowerCase();
+    if (l === 'token' || l === 'sfc' || l === 'template' || l === 'script' || l === 'style' || l === 'lang') return true;
+    return /password|secret|api[_-]?key|authorization|ssn|creditcard/.test(l);
+}
+function sensitiveValueKey(k) {
+    if (!k) return false;
+    return /password|secret|api[_-]?key|authorization|ssn|creditcard/.test(String(k).toLowerCase());
+}
+function redactValueMap(src) {
+    var out = {};
+    if (!src) return out;
+    Object.keys(src).forEach(function(k) {
+        out[k] = sensitiveValueKey(k) ? '***' : src[k];
+    });
+    return out;
+}
+function formatArgsFallback(name, args) {
+    if (!args || typeof args !== 'object' || Array.isArray(args)) return '';
+    var parts = [];
+    if (name === 'browse') {
+        if (args.path) parts.push('path=' + args.path);
+        if (args.match) parts.push('match=' + args.match);
+        if (args.depth != null && args.depth !== 1) parts.push('depth=' + args.depth);
+        if (args.detail) parts.push('detail=true');
+        return parts.join(' ');
+    }
+    if (name === 'request') {
+        return String(args.method || '?') + ' ' + String(args.path || '?');
+    }
+    if (name === 'run_service') {
+        if (args.serviceName) parts.push(args.serviceName);
+        var params = args.parameters;
+        if (params && typeof params === 'object' && !Array.isArray(params)) {
+            Object.keys(params).forEach(function(k) {
+                if (sensitiveArgKey(k)) parts.push(k + '=***');
+                else if (params[k] != null && typeof params[k] !== 'object') parts.push(k + '=' + params[k]);
+            });
+        }
+        return parts.join(' ');
+    }
+    if (name === 'find_skill') {
+        if (args.query) parts.push('query=' + args.query);
+        if (args.select) parts.push('select=' + args.select);
+        if (args.limit != null) parts.push('limit=' + args.limit);
+        return parts.join(' ');
+    }
+    if (name === 'enter_sim') {
+        if (args.goal) parts.push('goal=' + args.goal);
+        return parts.join(' ');
+    }
+    if (name === 'write_ui') {
+        parts.push('kind=' + (args.kind || 'form'));
+        if (args.title) parts.push('title=' + args.title);
+        if (args.fields && args.fields.length) parts.push('fields=' + args.fields.length);
+        return parts.join(' ');
+    }
+    Object.keys(args).forEach(function(k) {
+        if (sensitiveArgKey(k) || parts.length >= 6) return;
+        var v = args[k];
+        if (v == null || typeof v === 'object') return;
+        parts.push(k + '=' + v);
+    });
+    return parts.join(' ');
+}
+function formatResultFallback(name, content) {
+    if (content == null) return '';
+    if (typeof content === 'string') return content.length > 80 ? content.slice(0, 80) + '...' : content;
+    if (typeof content !== 'object') return String(content);
+    if (content.error) return 'error=' + content.error;
+    if (name === 'browse' && content.children) return (content.children.length || 0) + ' children';
+    if (name === 'request' && content.status != null) return 'status=' + content.status;
+    if (name === 'run_service') return content.ok ? 'ok' : '';
+    if (name === 'find_skill') {
+        if (content.selected && content.selected.name) return 'selected=' + content.selected.name;
+        if (content.skills) {
+            if (!content.skills.length) return 'none';
+            return content.skills.map(function(s) { return s && s.name; }).filter(Boolean).slice(0, 4).join(',');
+        }
+    }
+    if (name === 'enter_sim') {
+        if (content.proposedSkillName) {
+            var simParts = ['proposed=' + content.proposedSkillName];
+            if (content.proposedSkillId) simParts.push('skillId=' + content.proposedSkillId);
+            if (content.selected === false) simParts.push('not selected');
+            return simParts.join(' ');
+        }
+    }
+    if (name === 'write_ui' && content.submitted != null) {
+        var wr = content.submitted ? 'submitted' : 'not submitted';
+        if (content.adjust === true) wr += ' adjust';
+        if (content.notices && content.notices.length) wr += ' notices=' + content.notices.length;
+        return wr;
+    }
+    if (content.ok) return 'ok';
+    if (content.status != null) return 'status=' + content.status;
+    return '';
+}
+
+function assistAppRoot() {
+    if (window.moqui && moqui.webrootVue && moqui.webrootVue.appRootPath != null)
+        return moqui.webrootVue.appRootPath;
+    return '';
+}
+function assistNotify(message, kind) {
+    if (!message) return;
+    var type = kind === 'error' || kind === 'negative' ? 'danger'
+        : kind === 'positive' || kind === 'success' ? 'success'
+        : (kind || 'warning');
+    if (window.moqui && moqui.notifyMessages) {
+        if (type === 'danger') moqui.notifyMessages(null, String(message));
+        else moqui.notifyMessages([{ type: type, message: String(message) }]);
+        return;
+    }
+    var q = window.moqui && moqui.webrootVue && moqui.webrootVue.$q;
+    if (q && q.notify) {
+        var qType = type === 'danger' ? 'negative' : type === 'success' ? 'positive' : type;
+        var base = qType === 'negative' && moqui.notifyOptsError ? moqui.notifyOptsError
+            : qType === 'info' && moqui.notifyOptsInfo ? moqui.notifyOptsInfo
+            : qType === 'positive' && moqui.notifyOpts ? moqui.notifyOpts
+            : { timeout: 10000, type: 'warning' };
+        q.notify($.extend({}, base, { type: qType, message: String(message) }));
+        if (moqui.webrootVue.addNotify) moqui.webrootVue.addNotify(String(message), qType);
+    }
+}
+function formatDoneLine(data) {
+    if (!data) return '';
+    var parts = [];
+    if (data.yielded) parts.push('yielded');
+    else if (data.finishReason) parts.push(data.finishReason);
+    if (data.durationMs != null && data.durationMs !== '') parts.push(data.durationMs + 'ms');
+    var u = data.usage;
+    if (u && (u.promptTokens != null || u.completionTokens != null || u.totalTokens != null)) {
+        parts.push('tokens=' + (u.promptTokens != null ? u.promptTokens : '?') + '/'
+            + (u.completionTokens != null ? u.completionTokens : '?') + '/'
+            + (u.totalTokens != null ? u.totalTokens : '?'));
+    }
+    return parts.join(' ');
+}
+function ensureSfcProps(comp) {
+    if (!comp) return comp;
+    var base = {
+        values: { type: Object, 'default': function() { return {}; } },
+        schema: { type: Object },
+        mode: { type: String }
+    };
+    if (!comp.props) { comp.props = base; return comp; }
+    if (Array.isArray(comp.props)) {
+        ['values', 'schema', 'mode'].forEach(function(p) {
+            if (comp.props.indexOf(p) < 0) comp.props.push(p);
+        });
+        return comp;
+    }
+    if (!comp.props.values) comp.props.values = base.values;
+    if (!comp.props.schema) comp.props.schema = base.schema;
+    if (!comp.props.mode) comp.props.mode = base.mode;
+    return comp;
+}
+
+module.exports = {
+    data: function() {
+        return {
+            chatOnLeft: true, writeMode: 'script', forceSkillUse: false, splitPct: 40,
+            viewportWidth: typeof window !== 'undefined' ? window.innerWidth : 1200,
+            mobileTab: 'chat', openGen: 0,
+            composer: '', streaming: false,
+            conversationId: null, canvasId: null,
+            messages: [], pendingToolCalls: [],
+            schema: null, fieldValues: {}, dirtyFields: {},
+            adjustOpen: false, adjustText: '', canvasNotices: [],
+            autoValidationCount: 0, lastAutoHash: '', maxAutoValidations: 4,
+            vueSfcComp: null, vueSfcKey: null, vueSfcGen: 0, vueSfcFailed: false,
+            speechSupported: false, recognizing: false,
+            recognition: null, abortCtl: null,
+            conversations: [], profileFlags: {},
+            convDrawer: false, convSearch: '', convPageIndex: 0, convTotal: 0, convPageSize: 20,
+            convSearchTimer: null, sourceOpen: false, deleteOpen: false, deleteTarget: null
+        };
+    },
+    computed: {
+        isMobile: function() {
+            var narrow = this.viewportWidth <= 600;
+            var phone = window.Quasar && Quasar.Platform && Quasar.Platform.is && Quasar.Platform.is.mobile;
+            return narrow || !!phone;
+        },
+        /** Phone shows one pane. Desktop flips the splitter so chat and the drawer share a side. */
+        splitClass: function() {
+            if (this.isMobile) return this.mobileTab === 'screen' ? 'assist-mobile-screen' : 'assist-mobile-chat';
+            return this.chatOnLeft ? '' : 'assist-split-flip';
+        },
+        /** Quasar applies this to the left pane. splitPct stays the chat pane's share of the width. */
+        splitterPct: {
+            get: function() {
+                var chatPct = this.splitPct;
+                if (chatPct == null || isNaN(chatPct)) chatPct = 40;
+                if (this.chatOnLeft || this.isMobile) return chatPct;
+                return 100 - chatPct;
+            },
+            set: function(v) {
+                var n = Number(v);
+                if (isNaN(n)) return;
+                this.splitPct = (this.chatOnLeft || this.isMobile) ? n : (100 - n);
+            }
+        },
+        deletePrompt: function() {
+            var row = this.deleteTarget;
+            var name = (row && (row.summary || row.title)) || 'this conversation';
+            var who = row && row.userId ? ' (' + row.userId + ')' : '';
+            return 'Delete "' + name + '"' + who + '? The chat and canvas are removed.';
+        },
+        writeModeOptions: function() {
+            return [
+                { label: 'Script', value: 'script' },
+                { label: 'Agent', value: 'agent' }
+            ];
+        },
+        writeModeHint: function() {
+            var acts = (this.schema && this.schema.actions) || [];
+            var openui = this.schema && this.schema.kind === 'openui';
+            var mode;
+            if (this.writeMode === 'script') {
+                mode = (openui || acts.length)
+                    ? 'This screen runs the listed actions when you click.'
+                    : 'A click sends this form to Assist, which runs the write.';
+            } else {
+                mode = 'Assist runs the listed actions after you click.';
+            }
+            if (!this.forceSkillUse) return mode;
+            return mode + ' Force Skill Use: select a skill or enter sim before other tools.';
+        },
+        llmBase: function() {
+            var root = assistAppRoot();
+            return root + '/llm/v1';
+        },
+        csrf: function() { return (this.$root && this.$root.moquiSessionToken) || ''; },
+        showOpenUi: function() {
+            return !!(this.schema && this.schema.kind === 'openui' && this.schema.lang);
+        },
+        /** kind=openui with fields, actions, or submitLabel and no lang is a form the model mislabeled. */
+        formShapedOpenUi: function() {
+            var s = this.schema;
+            if (!s || s.kind !== 'openui' || s.lang) return false;
+            var fields = s.fields || [];
+            var acts = s.actions || [];
+            return fields.length > 0 || acts.length > 0 || !!s.submitLabel;
+        },
+        showParentSubmit: function() {
+            if (!this.schema) return false;
+            if (this.schema.kind === 'openui' && !this.formShapedOpenUi) return false;
+            return true;
+        },
+        visibleFields: function() {
+            var fields = (this.schema && this.schema.fields) || [];
+            return fields.filter(function(f) { return f && f.widget !== 'hidden'; });
+        },
+        primaryLabel: function() {
+            var s = this.schema || {};
+            var acts = s.actions || [];
+            var p = acts.filter(function(a) { return a.primary; })[0];
+            return unescapeHtml((p && p.label) || s.submitLabel || 'Submit');
+        },
+        primaryId: function() {
+            var acts = (this.schema && this.schema.actions) || [];
+            var p = acts.filter(function(a) { return a.primary; })[0];
+            return (p && p.id) || (acts[0] && acts[0].id) || 'submit';
+        },
+        showVueSfc: function() {
+            return !!(this.vueSfcComp && this.schema && this.schema.kind === 'vue-sfc');
+        },
+        convPages: function() {
+            var size = this.convPageSize || 20;
+            return Math.max(1, Math.ceil((this.convTotal || 0) / size));
+        },
+        sourceText: function() { return canvasSourceText(this.schema); },
+        submitScriptText: function() { return canvasSubmitText(this.schema); },
+        showFormWidgets: function() {
+            if (!this.schema || this.showVueSfc || this.showOpenUi) return false;
+            if (this.schema.kind === 'vue-sfc') return this.vueSfcFailed;
+            if (this.schema.kind === 'openui' && !this.formShapedOpenUi) return false;
+            return true;
+        }
+    },
+    watch: {
+        streaming: function(v) {
+            if (v) return;
+            var list = this.messages || [];
+            for (var i = 0; i < list.length; i++) if (list[i] && list[i].pending) list[i].pending = false;
+        }
+    },
+    methods: {
+        persistPref: function(key, value) {
+            $.ajax({ type: 'POST', url: (assistAppRoot() + '/apps/setPreference'),
+                data: { moquiSessionToken: this.csrf, preferenceKey: key, preferenceValue: value },
+                error: moqui.handleAjaxError });
+        },
+        persistWriteMode: function() { this.persistPref('ASSIST_WRITE_MODE', this.writeMode); },
+        persistForceSkillUse: function() {
+            this.persistPref('ASSIST_FORCE_SKILL_USE', this.forceSkillUse ? 'true' : 'false');
+        },
+        toggleSide: function() {
+            this.chatOnLeft = !this.chatOnLeft;
+            this.persistPref('ASSIST_CHAT_SIDE', this.chatOnLeft ? 'left' : 'right');
+        },
+        /** Put the chat in the left slot unless the desktop layout has it on the right. A phone never flips. */
+        placePanes: function() {
+            var before = this.$refs.paneBefore;
+            var after = this.$refs.paneAfter;
+            var chat = this.$refs.chatPane;
+            var canvas = this.$refs.canvasPane;
+            if (!before || !after || !chat || !canvas) return;
+            var chatLeft = this.chatOnLeft || this.isMobile;
+            var left = chatLeft ? chat : canvas;
+            var right = chatLeft ? canvas : chat;
+            if (left.parentNode !== before) before.appendChild(left);
+            if (right.parentNode !== after) after.appendChild(right);
+        },
+        newSession: function() {
+            this.openGen = (this.openGen || 0) + 1;
+            this.cancelTurn();
+            this.clearLocalSession();
+        },
+        loadPrefs: function() {
+            var vm = this;
+            $.ajax({ type: 'GET', url: (assistAppRoot() + '/apps/getPreferences'),
+                data: { keyRegexp: 'ASSIST_' }, dataType: 'json',
+                success: function(prefs) {
+                    if (!prefs) return;
+                    if (prefs.ASSIST_CHAT_SIDE === 'right') vm.chatOnLeft = false;
+                    if (prefs.ASSIST_WRITE_MODE === 'agent' || prefs.ASSIST_WRITE_MODE === 'script')
+                        vm.writeMode = prefs.ASSIST_WRITE_MODE;
+                    if (prefs.ASSIST_FORCE_SKILL_USE === 'true') vm.forceSkillUse = true;
+                    if (prefs.ASSIST_FORCE_SKILL_USE === 'false') vm.forceSkillUse = false;
+                } });
+        },
+        loadProfiles: function() {
+            var vm = this;
+            fetch(this.llmBase + '/profiles', { credentials: 'same-origin', headers: { Accept: 'application/json' } })
+                .then(function(r) { return r.json(); })
+                .then(function(body) {
+                    var list = (body && body.profiles) || [];
+                    var assist = list.filter(function(p) { return p.name === 'assist'; })[0] || list[0];
+                    vm.profileFlags = assist || {};
+                    if (assist && assist.allowUnprefixedRequest === false && assist.allowBrowse === false)
+                        assistNotify('Assist profile tools are limited; browse/request may be unavailable.', 'warning');
+                }).catch(function() { /* ignore */ });
+        },
+        loadConversations: function(pageIndex) {
+            var vm = this;
+            var page = pageIndex == null ? (this.convPageIndex || 0) : pageIndex;
+            if (page < 0) page = 0;
+            var search = (this.convSearch || '').trim();
+            var url = this.llmBase + '/conversations?profile=assist&purpose=assist&pageIndex=' + page;
+            if (search) url += '&search=' + encodeURIComponent(search);
+            fetch(url, { credentials: 'same-origin', headers: { Accept: 'application/json' } })
+                .then(function(r) { return r.json(); })
+                .then(function(body) {
+                    vm.conversations = (body && body.conversations) || [];
+                    vm.convTotal = body && body.totalCount != null ? body.totalCount : vm.conversations.length;
+                    vm.convPageIndex = body && body.pageIndex != null ? body.pageIndex : page;
+                    if (body && body.pageSize) vm.convPageSize = body.pageSize;
+                })
+                .catch(function() { vm.conversations = []; });
+        },
+        toggleConvDrawer: function() {
+            this.convDrawer = !this.convDrawer;
+            if (this.convDrawer) this.loadConversations(this.convPageIndex || 0);
+        },
+        onConvSearch: function() {
+            var vm = this;
+            if (this.convSearchTimer) clearTimeout(this.convSearchTimer);
+            this.convSearchTimer = setTimeout(function() { vm.loadConversations(0); }, 300);
+        },
+        onConvPage: function(page) {
+            this.loadConversations((page || 1) - 1);
+        },
+        openConversation: function(id) {
+            if (!id || this.streaming) return;
+            var vm = this;
+            var gen = (this.openGen = (this.openGen || 0) + 1);
+            // Id already shown when this GET starts. A turn can assign a new id without another
+            // open. Ignore the response only in that case, so choosing a different chat still loads.
+            var openedOver = this.conversationId;
+            fetch(this.llmBase + '/conversations/' + encodeURIComponent(id),
+                { credentials: 'same-origin', headers: { Accept: 'application/json' } })
+                .then(function(r) {
+                    if (gen !== vm.openGen || vm.streaming) return null;
+                    if (r.status === 404) {
+                        try {
+                            if (sessionStorage.getItem(CONV_STORAGE_KEY) === id)
+                                sessionStorage.removeItem(CONV_STORAGE_KEY);
+                        } catch (e) { /* ignore */ }
+                        if (vm.conversationId === id) vm.conversationId = null;
+                        return null;
+                    }
+                    if (!r.ok) throw new Error('HTTP ' + r.status);
+                    return r.json();
+                })
+                .then(function(body) {
+                    if (gen !== vm.openGen || vm.streaming) return;
+                    if (body && vm.conversationId && vm.conversationId !== openedOver
+                            && vm.conversationId !== body.conversationId) return;
+                    if (!body || !body.conversationId) return;
+                    vm.restoreConversation(body);
+                })
+                .catch(function(err) { assistNotify((err && err.message) || 'Could not open conversation', 'warning'); });
+        },
+        restoreConversation: function(body) {
+            this.conversationId = body.conversationId;
+            try { sessionStorage.setItem(CONV_STORAGE_KEY, body.conversationId); } catch (e) { /* ignore */ }
+            this.messages = historyToMessages(body.history);
+            this.pendingToolCalls = body.pendingToolCalls || [];
+            this.schema = null;
+            this.fieldValues = {};
+            this.dirtyFields = {};
+            this.canvasNotices = [];
+            this.adjustOpen = false;
+            this.adjustText = '';
+            this.autoValidationCount = 0;
+            this.lastAutoHash = '';
+            this.vueSfcComp = null;
+            this.vueSfcKey = null;
+            this.vueSfcFailed = false;
+            this.vueSfcGen = (this.vueSfcGen || 0) + 1;
+            var canvas = body.canvas;
+            if (!canvas) {
+                var pending = this.pendingToolCalls[0];
+                var args = pending && pending.name === 'write_ui' ? pending.arguments : null;
+                if (typeof args === 'string') { try { args = JSON.parse(args); } catch (e) { args = null; } }
+                if (isWriteUiArgs(args)) canvas = args;
+            }
+            if (canvas) this.applyYield(canvas);
+            this.convDrawer = false;
+        },
+        askDelete: function(row) {
+            this.deleteTarget = row;
+            this.deleteOpen = true;
+        },
+        deleteConversation: function() {
+            var row = this.deleteTarget;
+            if (!row || !row.conversationId) return;
+            var vm = this;
+            var id = row.conversationId;
+            this.deleteOpen = false;
+            fetch(this.llmBase + '/conversations/' + encodeURIComponent(id), {
+                method: 'DELETE', credentials: 'same-origin', headers: this.headers(false), body: '{}'
+            }).then(function(r) {
+                return r.json().catch(function() { return {}; }).then(function(body) {
+                    if (!r.ok || body.deleted === false) {
+                        assistNotify((body && body.message) || 'Could not delete', 'warning');
+                        return;
+                    }
+                    if (vm.conversationId === id) {
+                        vm.openGen = (vm.openGen || 0) + 1;
+                        vm.clearLocalSession();
+                    }
+                    vm.loadConversations(vm.convPageIndex || 0);
+                });
+            }).catch(function(err) { assistNotify((err && err.message) || 'Could not delete', 'warning'); });
+        },
+        copyText: function(text) {
+            if (!text) return;
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(text).catch(function() { /* ignore */ });
+            }
+        },
+        formatWhen: function(ms) { return formatWhen(ms); },
+        convStatusLabel: function(status) { return convStatusLabel(status); },
+        send: function() {
+            var text = (this.composer || '').trim();
+            if (!text || this.streaming) return;
+            this.composer = '';
+            this.messages.push({ role: 'user', content: text });
+            if (this.pendingToolCalls.length) this.resumeChat(text);
+            else this.chat(text);
+        },
+        toolNames: function() { return ['find_skill', 'enter_sim', 'browse', 'find_basic', 'request', 'write_ui', 'run_service', 'pin']; },
+        headers: function(stream) {
+            var h = { 'Content-Type': 'application/json', 'X-CSRF-Token': this.csrf, Accept: stream ? 'text/event-stream' : 'application/json' };
+            return h;
+        },
+        chatFlags: function() {
+            return {
+                forceSkillUse: !!this.forceSkillUse,
+                writeMode: this.writeMode === 'agent' ? 'agent' : 'script'
+            };
+        },
+        chat: function(text) {
+            var body = Object.assign({ profile: 'assist', purpose: 'assist', canvasId: this.canvasId,
+                user: text, tools: this.toolNames(), stream: true }, this.chatFlags());
+            if (this.conversationId) body.conversationId = this.conversationId;
+            this.runSse(this.llmBase + '/chat', body);
+        },
+        resumeChat: function(text) {
+            var pending = this.pendingToolCalls[0];
+            if (!pending) { this.chat(text); return; }
+            var content = this.writeUiResult(false, null);
+            content.userMessage = text;
+            var body = Object.assign({ profile: 'assist', tools: this.toolNames(), user: text, stream: true,
+                toolResults: [{ id: pending.id, name: pending.name || 'write_ui', content: content }] },
+                this.chatFlags());
+            this.runSse(this.llmBase + '/chat/' + encodeURIComponent(this.conversationId) + '/resume', body);
+        },
+        writeUiResult: function(submitted, button) {
+            return {
+                submitted: !!submitted,
+                mode: this.writeMode,
+                button: button || null,
+                values: Object.assign({}, this.fieldValues),
+                actions: (this.schema && this.schema.actions) || [],
+                canvas: this.currentCanvas()
+            };
+        },
+        recordCanvasNotice: function(message, kind) {
+            if (!message) return false;
+            var text = String(message);
+            var norm = text.trim().replace(/\s+/g, ' ');
+            var list = this.canvasNotices || [];
+            this.canvasNotices = list;
+            for (var i = 0; i < list.length; i++) {
+                var existing = list[i];
+                var existingNorm = String(existing.message || '').trim().replace(/\s+/g, ' ');
+                if (existingNorm === norm) {
+                    existing.count = (existing.count || 1) + 1;
+                    return false;
+                }
+            }
+            list.push({ kind: kind === 'error' ? 'error' : (kind || 'warning'), message: text, count: 1 });
+            return true;
+        },
+        noteCanvas: function(message, kind) {
+            if (this.recordCanvasNotice(message, kind)) assistNotify(message, kind);
+        },
+        adjustPackage: function(feedback) {
+            var canvas = this.currentCanvas();
+            var fields = (canvas && canvas.fields) || [];
+            for (var i = 0; i < fields.length; i++) {
+                var f = fields[i];
+                if (f && sensitiveValueKey(f.name) && f.defaultValue != null && f.defaultValue !== '')
+                    f.defaultValue = '***';
+            }
+            var pack = {
+                submitted: false,
+                adjust: true,
+                feedback: feedback,
+                instruction: ADJUST_INSTRUCTION,
+                mode: this.writeMode,
+                button: null,
+                values: redactValueMap(this.fieldValues),
+                actions: (this.schema && this.schema.actions) || [],
+                canvas: canvas
+            };
+            var notices = this.canvasNotices || [];
+            if (notices.length) {
+                pack.notices = notices.map(function(n) {
+                    var row = { kind: n.kind, message: n.message };
+                    if (n.count && n.count > 1) row.count = n.count;
+                    return row;
+                });
+            }
+            return pack;
+        },
+        submitAdjust: function() {
+            var feedback = (this.adjustText || '').trim();
+            var pending = this.pendingToolCalls && this.pendingToolCalls[0];
+            if (!feedback || this.streaming || !this.schema || this.pendingConfirm()) return;
+            if (pending && pending.name !== 'write_ui') return;
+            this.adjustOpen = false;
+            this.adjustText = '';
+            var pack = this.adjustPackage(feedback);
+            this.messages.push({ role: 'user', content: 'Adjust: ' + feedback });
+            if (pending && pending.name === 'write_ui' && this.conversationId) {
+                pack.userMessage = feedback;
+                var body = Object.assign({ profile: 'assist', tools: this.toolNames(), user: feedback, stream: true,
+                    toolResults: [{ id: pending.id, name: 'write_ui', content: pack }] },
+                    this.chatFlags());
+                this.runSse(this.llmBase + '/chat/' + encodeURIComponent(this.conversationId) + '/resume', body);
+                return;
+            }
+            var userText = 'Adjust the screen.\n' + ADJUST_INSTRUCTION
+                + '\n\nFeedback:\n' + feedback
+                + '\n\nwrite_ui result:\n' + JSON.stringify(pack);
+            this.chat(userText);
+        },
+        currentCanvas: function() {
+            var schema = this.schema ? JSON.parse(JSON.stringify(this.schema)) : null;
+            if (!schema) return null;
+            var vals = this.fieldValues;
+            var fields = schema.fields || [];
+            for (var i = 0; i < fields.length; i++) {
+                var n = fields[i].name;
+                if (n && Object.prototype.hasOwnProperty.call(vals, n)) fields[i].defaultValue = vals[n];
+            }
+            return schema;
+        },
+        applySchema: function(schema) {
+            if (!schema) return;
+            this.canvasNotices = [];
+            var prevDirty = Object.assign({}, this.dirtyFields);
+            var prevVals = Object.assign({}, this.fieldValues);
+            schema.title = unescapeHtml(schema.title);
+            schema.instruction = unescapeHtml(schema.instruction);
+            if (schema.instruction && /root\s*=\s*Stack\s*\(/.test(schema.instruction))
+                schema.instruction = '';
+            schema.submitLabel = unescapeHtml(schema.submitLabel);
+            var acts = schema.actions || [];
+            for (var ai = 0; ai < acts.length; ai++) if (acts[ai] && acts[ai].label)
+                acts[ai].label = unescapeHtml(acts[ai].label);
+            var flds = schema.fields || [];
+            for (var fi = 0; fi < flds.length; fi++) if (flds[fi] && flds[fi].label)
+                flds[fi].label = unescapeHtml(flds[fi].label);
+            this.schema = schema;
+            if (schema.sfcError) this.noteCanvas(schema.sfcError, 'error');
+            if (schema.langError && schema.kind === 'openui' && !schema.lang)
+                this.noteCanvas(schema.langError, 'error');
+            var next = {};
+            var fields = schema.fields || [];
+            for (var i = 0; i < fields.length; i++) {
+                var f = fields[i];
+                if (!f || !f.name) continue;
+                if (prevDirty[f.name]) next[f.name] = prevVals[f.name];
+                else if (f.widget === 'date-time')
+                    next[f.name] = assistFormatDateValue(scalarValue(f.defaultValue), f.widgetType || 'date-time');
+                else next[f.name] = scalarValue(f.defaultValue);
+            }
+            Object.keys(prevVals).forEach(function(k) {
+                if (!Object.prototype.hasOwnProperty.call(next, k)) next[k] = prevVals[k];
+            });
+            this.fieldValues = next;
+            this.dirtyFields = prevDirty;
+        },
+        applyYield: function(args) {
+            if (!args) return;
+            this.autoValidationCount = 0;
+            this.lastAutoHash = '';
+            this.applySchema(args);
+            if (args.kind === 'openui') {
+                this.vueSfcGen = (this.vueSfcGen || 0) + 1;
+                this.vueSfcComp = null;
+                this.vueSfcKey = null;
+                this.vueSfcFailed = false;
+                this.loadOpenUi();
+            } else if (args.kind === 'vue-sfc') this.loadVueSfc(args);
+            else {
+                this.vueSfcGen = (this.vueSfcGen || 0) + 1;
+                this.vueSfcComp = null;
+                this.vueSfcKey = null;
+                this.vueSfcFailed = false;
+            }
+        },
+        ensureOpenUiHost: function() {
+            var app = window.moqui && moqui.qapps2App;
+            var comps = app && app._context && app._context.components;
+            if (!app || typeof app.component !== 'function' || (comps && comps['assist-openui'])) return;
+            // The compiled template resolves assist-openui on every render, including the first one.
+            app.component('assist-openui', {
+                name: 'assist-openui',
+                template: '<div class="assist-openui text-grey-7 q-pa-sm">Loading OpenUI…</div>'
+            });
+        },
+        loadOpenUi: function() {
+            if (window.OpenUILang && window.AssistOpenUiReady) return Promise.resolve();
+            this.ensureOpenUiHost();
+            var root = assistAppRoot();
+            var ver = pageResourceVersion();
+            var q = ver ? ('?v=' + ver) : '';
+            var files = [
+                root + '/qapps2static/js/dash/DashShared.js' + q,
+                root + '/qapps2static/js/assist/lang-core.umd.min.js' + q,
+                root + '/qapps2static/js/assist/AssistOpenUiLibrary.js' + q,
+                root + '/qapps2static/js/assist/AssistOpenUi.js' + q
+            ];
+            var chain = Promise.resolve();
+            files.forEach(function(src) {
+                chain = chain.then(function() { return loadScriptOnce(src); });
+            });
+            var vm = this;
+            return chain.then(function() {
+                if (window.AssistOpenUiReady) vm.$forceUpdate();
+            }).catch(function(err) {
+                vm.noteCanvas((err && err.message) || String(err), 'error');
+            });
+        },
+        onOpenUiState: function(snap) {
+            if (!snap || typeof snap !== 'object') return;
+            var next = Object.assign({}, this.fieldValues);
+            Object.keys(snap).forEach(function(k) {
+                var v = snap[k];
+                if (v && typeof v === 'object' && !Array.isArray(v) && typeof v.k === 'string') return;
+                if (v && typeof v === 'object' && !Array.isArray(v) && Object.prototype.hasOwnProperty.call(v, 'value'))
+                    v = v.value;
+                if (k.charAt(0) === '$') next[k.slice(1)] = v;
+                else if (v && typeof v === 'object' && !Array.isArray(v)) {
+                    Object.keys(v).forEach(function(fk) {
+                        var fv = v[fk];
+                        if (fv && typeof fv === 'object' && Object.prototype.hasOwnProperty.call(fv, 'value')) fv = fv.value;
+                        next[fk] = fv;
+                    });
+                } else next[k] = v;
+            });
+            this.fieldValues = next;
+        },
+        onOpenUiRequestNotice: function(payload) {
+            if (!payload) return;
+            var errors = payload.errors || [];
+            var warnings = payload.warnings || [];
+            for (var i = 0; i < errors.length; i++) this.noteCanvas(errors[i], 'error');
+            for (var w = 0; w < warnings.length; w++) this.noteCanvas(warnings[w], 'warning');
+            if (errors.length) this.maybeAutoResumeValidation();
+        },
+        onOpenUiError: function(errors) {
+            if (!errors || !errors.length) return;
+            var seen = {};
+            var distinct = [];
+            for (var i = 0; i < errors.length; i++) {
+                var msg = (errors[i] && errors[i].message) || 'OpenUI parse error';
+                var norm = String(msg).trim().replace(/\s+/g, ' ');
+                if (seen[norm]) continue;
+                seen[norm] = true;
+                distinct.push(errors[i]);
+            }
+            if (!distinct.length) return;
+            for (var d = 0; d < distinct.length; d++)
+                this.recordCanvasNotice((distinct[d] && distinct[d].message) || 'OpenUI parse error', 'error');
+            assistNotify(distinct.length + ' screen problem' + (distinct.length > 1 ? 's' : '') + ': '
+                + ((distinct[0] && distinct[0].message) || 'OpenUI parse error'), 'warning');
+            this.maybeAutoResumeValidation();
+        },
+        autoValidationHash: function() {
+            var list = this.canvasNotices || [];
+            var errs = [];
+            for (var i = 0; i < list.length; i++) if (list[i] && list[i].kind === 'error') errs.push(String(list[i].message || ''));
+            errs.sort();
+            return errs.join('\n');
+        },
+        buildValidationSnippet: function() {
+            var lang = this.schema && this.schema.lang;
+            if (!lang) return null;
+            var lines = String(lang).split('\n');
+            var firstErr = null;
+            var list = this.canvasNotices || [];
+            for (var i = 0; i < list.length; i++) {
+                if (list[i] && list[i].kind === 'error' && list[i].message) { firstErr = String(list[i].message); break; }
+            }
+            var at = -1;
+            if (firstErr) {
+                var m = /`([^`=\n]{1,64})`/.exec(firstErr) || /["']([A-Za-z_][A-Za-z0-9_]{0,63})["']/.exec(firstErr);
+                if (m) {
+                    var name = m[1];
+                    for (var li = 0; li < lines.length; li++) {
+                        if (lines[li].match(new RegExp('(^|\\s)' + name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*='))) { at = li; break; }
+                    }
+                }
+            }
+            var start, end;
+            if (at >= 0) { start = Math.max(0, at - 2); end = Math.min(lines.length, at + 3); }
+            else { start = 0; end = Math.min(lines.length, 15); }
+            return { statementHint: firstErr, startLine: start + 1, lines: lines.slice(start, end), langChars: String(lang).length };
+        },
+        autoValidationPackage: function(feedback) {
+            var pack = this.adjustPackage(feedback);
+            pack.autoValidation = true;
+            pack.origin = 'auto-validation';
+            pack.attempt = (this.autoValidationCount || 0) + 1;
+            pack.maxAttempts = this.maxAutoValidations || 4;
+            var snippet = this.buildValidationSnippet();
+            if (snippet) pack.snippet = snippet;
+            var notices = this.canvasNotices || [];
+            if (notices.length) {
+                pack.notices = notices.map(function(n) {
+                    var row = { kind: n.kind, message: n.message };
+                    if (n.count && n.count > 1) row.count = n.count;
+                    return row;
+                });
+            }
+            return pack;
+        },
+        maybeAutoResumeValidation: function() {
+            if (this.streaming) return;
+            var pending = this.pendingToolCalls && this.pendingToolCalls[0];
+            if (!pending || pending.name !== 'write_ui' || !this.conversationId) return;
+            if (this.pendingConfirm()) return;
+            var hash = this.autoValidationHash();
+            if (!hash) return;
+            var max = this.maxAutoValidations || 4;
+            if ((this.autoValidationCount || 0) >= max) return;
+            if (hash === this.lastAutoHash) return;
+            this.lastAutoHash = hash;
+            this.autoValidationCount = (this.autoValidationCount || 0) + 1;
+            var n = this.autoValidationCount;
+            var firstLine = hash.split('\n')[0] || 'validation failed';
+            var errCount = hash.split('\n').length;
+            var feedback = 'OpenUI validation failed (attempt ' + n + '/' + max + '): '
+                + errCount + ' problem' + (errCount > 1 ? 's' : '') + '. First: ' + firstLine
+                + '. Fix all notices with write_ui (prefer a small writeThrough patch, or a full lang program if the screen failed to render).';
+            var pack = this.autoValidationPackage(feedback);
+            pack.userMessage = feedback;
+            this.messages.push({ role: 'user', content: 'Auto-adjust (validation ' + n + '/' + max + '): ' + firstLine });
+            assistNotify('Checking screen, attempt ' + n + '/' + max + '…', 'info');
+            if (n >= max) {
+                var vm = this;
+                setTimeout(function() {
+                    assistNotify('Validation still failing after ' + max + ' attempts — ' + errCount
+                        + ' problems listed; use Adjust or edit the request.', 'warning');
+                }, 0);
+            }
+            var body = Object.assign({ profile: 'assist', tools: this.toolNames(), user: feedback, stream: true,
+                toolResults: [{ id: pending.id, name: 'write_ui', content: pack }] },
+                this.chatFlags());
+            this.runSse(this.llmBase + '/chat/' + encodeURIComponent(this.conversationId) + '/resume', body);
+        },
+        onOpenUiAction: function(ev) {
+            if (!ev) return;
+            if (ev.formState) this.onOpenUiState(ev.formState);
+            var type = ev.type;
+            if (type === 'open_url') {
+                var url = ev.params && ev.params.url;
+                var Nav = window.AssistOpenUiNav;
+                var built = Nav && Nav.build ? Nav.build(url, null, null, {
+                    appRoot: assistAppRoot(),
+                    getLinkPath: this.$root && this.$root.getLinkPath && this.$root.getLinkPath.bind(this.$root),
+                    rewriteShell: true
+                }) : null;
+                if (built && built.href) window.open(built.href, '_blank', 'noopener,noreferrer');
+                else if (!built && url && url.charAt(0) === '/' && url.indexOf('://') < 0 && url.indexOf('//') !== 0
+                        && url.indexOf('..') < 0)
+                    window.open((assistAppRoot()) + url, '_blank', 'noopener,noreferrer');
+                return;
+            }
+            if (type === 'submit' || type === 'continue_conversation') {
+                if (ev.humanFriendlyMessage && type === 'continue_conversation' && this.pendingToolCalls.length)
+                    this.resumeChat(ev.humanFriendlyMessage);
+                else this.submitCanvas(this.primaryId);
+            }
+        },
+        applyOpenUiDelta: function(argumentsSoFar) {
+            var lang = extractOpenUiLang(argumentsSoFar);
+            if (!lang) return;
+            if (!this.schema || this.schema.kind === 'openui' || !this.schema.kind) {
+                var next = Object.assign({}, this.schema || {}, { kind: 'openui', lang: lang });
+                this.schema = next;
+                this.loadOpenUi();
+            }
+        },
+        loadVueSfc: function(schema) {
+            var vm = this;
+            var text = assembleSfc(schema);
+            if (!text || text.toLowerCase().indexOf('<template') < 0) {
+                this.vueSfcGen = (this.vueSfcGen || 0) + 1;
+                if (!this.vueSfcComp) this.vueSfcFailed = true;
+                if (schema && schema.sfcError) vm.noteCanvas(schema.sfcError, 'error');
+                return;
+            }
+            var key = hashString(text);
+            if (key === this.vueSfcKey && this.vueSfcComp) { this.vueSfcFailed = false; return; }
+            if (!window.moqui || typeof moqui.parseSfc !== 'function') {
+                vm.noteCanvas('Generated screen failed to compile: vue3-sfc-loader is not available', 'error');
+                if (!this.vueSfcComp) this.vueSfcFailed = true;
+                return;
+            }
+            this.vueSfcFailed = false;
+            this.vueSfcGen = (this.vueSfcGen || 0) + 1;
+            var gen = this.vueSfcGen;
+            moqui.parseSfc(text, 'assist-generated-' + key + '.vue').then(function(mod) {
+                if (gen !== vm.vueSfcGen) return;
+                var comp = mod && (mod.default || mod);
+                if (!comp || (!comp.template && !comp.render)) {
+                    vm.noteCanvas('Generated screen failed to compile: missing template', 'error');
+                    if (!vm.vueSfcComp) vm.vueSfcFailed = true;
+                    return;
+                }
+                if (window.Vue && Vue.markRaw) comp = Vue.markRaw(ensureSfcProps(comp));
+                else comp = ensureSfcProps(comp);
+                vm.vueSfcComp = comp;
+                vm.vueSfcKey = key;
+                vm.vueSfcFailed = false;
+            }).catch(function(err) {
+                if (gen !== vm.vueSfcGen) return;
+                vm.noteCanvas('Generated screen failed to compile: ' + ((err && err.message) || String(err)), 'error');
+                if (!vm.vueSfcComp) vm.vueSfcFailed = true;
+            });
+        },
+        onSfcInput: function(payload) {
+            if (payload == null || typeof payload !== 'object' || Array.isArray(payload)) return;
+            if (payload.name != null && Object.prototype.hasOwnProperty.call(payload, 'value')
+                    && Object.keys(payload).length <= 3)
+                this.onFieldInput(payload.name, payload.value);
+            else {
+                var vm = this;
+                Object.keys(payload).forEach(function(k) {
+                    if (k === 'name' || k === 'button') return;
+                    vm.onFieldInput(k, payload[k]);
+                });
+                if (payload.name != null && payload.value !== undefined && !Object.prototype.hasOwnProperty.call(payload, payload.name))
+                    this.onFieldInput(payload.name, payload.value);
+            }
+        },
+        onSfcSubmit: function(payload) {
+            var button = this.primaryId;
+            if (payload && typeof payload === 'object') {
+                if (payload.button) button = payload.button;
+                if (payload.values && typeof payload.values === 'object') this.onSfcInput(payload.values);
+                else if (payload.name != null && Object.prototype.hasOwnProperty.call(payload, 'value'))
+                    this.onSfcInput(payload);
+            }
+            this.submitCanvas(button);
+        },
+        radioOptions: function(f) {
+            return ((f && f.options) || []).map(function(o) {
+                return { label: (o && (o.text || o.key)) || '', value: o && o.key };
+            });
+        },
+        onFieldInput: function(name, value) {
+            this.$set(this.fieldValues, name, value);
+            this.$set(this.dirtyFields, name, true);
+        },
+        submitCanvas: function(buttonId) {
+            if (this.streaming) return;
+            var vm = this;
+            var acts = (this.schema && this.schema.actions) || [];
+            var runActions = this.writeMode === 'script' && acts.length;
+            assistNotify(runActions ? 'Running listed actions…' : 'Submitted — Assist is working…', 'info');
+            if (runActions) {
+                this.runScriptActions().then(function(actionResults) {
+                    assistNotify('Actions finished; Assist is reviewing results…', 'info');
+                    vm.finishSubmit(buttonId, actionResults);
+                }).catch(function(err) {
+                    var msg = (err && err.message) || String(err);
+                    if (vm.recordCanvasNotice(msg, 'error')) assistNotify(msg, 'error');
+                    vm.finishSubmit(buttonId, err.actionResults || []);
+                });
+            } else {
+                this.finishSubmit(buttonId, []);
+            }
+        },
+        pendingConfirm: function() {
+            var call = this.pendingToolCalls && this.pendingToolCalls[0];
+            if (!call || (call.confirm !== true && call.confirm !== 'true')) return null;
+            if (call.name !== 'request' && call.name !== 'run_service') return null;
+            return call;
+        },
+        confirmSummary: function(call) {
+            if (!call) return '';
+            var args = call.arguments;
+            if (typeof args === 'string') { try { args = JSON.parse(args); } catch (e) { args = {}; } }
+            args = args || {};
+            var line = call.name === 'run_service'
+                ? (args.serviceName || 'run_service')
+                : ((args.method || 'POST') + ' ' + (args.path || ''));
+            var detail = this.confirmArgs(args);
+            return (call.risk === 'irreversible' ? 'Irreversible. ' : '') + line + (detail ? '\n' + detail : '');
+        },
+        confirmArgs: function(args) {
+            var lines = [];
+            function add(prefix, obj, depth) {
+                if (!obj || typeof obj !== 'object' || depth > 2) return;
+                Object.keys(obj).forEach(function(k) {
+                    if (k === 'method' || k === 'path' || k === 'serviceName') return;
+                    var v = obj[k];
+                    if (/password|secret|cardnumber|cvv|apikey|authorization/i.test(k)) {
+                        lines.push(prefix + k + ': (hidden)');
+                        return;
+                    }
+                    if (v && typeof v === 'object') add(prefix + k + '.', v, depth + 1);
+                    else if (v != null && v !== '') lines.push(prefix + k + ': ' + v);
+                });
+            }
+            add('', args.parameters || {}, 0);
+            add('', args.body || {}, 0);
+            add('', args.query || {}, 0);
+            var text = lines.join('\n');
+            if (text.length > 4000) text = text.substring(0, 4000) + '…';
+            return text;
+        },
+        confirmTool: function(ok) {
+            var pending = this.pendingConfirm();
+            if (!pending || !this.conversationId || this.streaming) return;
+            var body = Object.assign({ profile: 'assist', tools: this.toolNames(), stream: true,
+                toolResults: [{ id: pending.id, name: pending.name, content: { confirmed: !!ok } }] },
+                this.chatFlags());
+            this.runSse(this.llmBase + '/chat/' + encodeURIComponent(this.conversationId) + '/resume', body);
+        },
+        finishSubmit: function(buttonId, actionResults) {
+            var pending = this.pendingToolCalls[0];
+            if (!pending || !this.conversationId) {
+                assistNotify('Nothing to submit (no yielded form).', 'warning');
+                return;
+            }
+            var content = this.writeUiResult(true, buttonId);
+            content.actionResults = actionResults || [];
+            var body = Object.assign({ profile: 'assist', tools: this.toolNames(), stream: true,
+                toolResults: [{ id: pending.id, name: pending.name || 'write_ui', content: content }] },
+                this.chatFlags());
+            this.runSse(this.llmBase + '/chat/' + encodeURIComponent(this.conversationId) + '/resume', body);
+        },
+        runScriptActions: function() {
+            var vm = this;
+            var actions = (this.schema && this.schema.actions) || [];
+            var bag = Object.assign({}, this.fieldValues);
+            var results = [];
+            var failed = {};
+            function next(i) {
+                if (i >= actions.length) return Promise.resolve(results);
+                var act = actions[i] || {};
+                var deps = act.dependsOn || [];
+                for (var d = 0; d < deps.length; d++) {
+                    if (failed[deps[d]]) {
+                        results.push({ id: act.id, skipped: true, reason: 'dependency failed: ' + deps[d] });
+                        return next(i + 1);
+                    }
+                }
+                var path = subst(act.path, bag);
+                var pathErr = validateActionPath(path);
+                if (pathErr) {
+                    failed[act.id] = true;
+                    results.push({ id: act.id, error: pathErr });
+                    return Promise.reject({ message: pathErr, actionResults: results });
+                }
+                var method = (act.method || 'POST').toUpperCase();
+                var bodyObj = {};
+                var keys = act.bodyFromFields || Object.keys(vm.fieldValues);
+                for (var k = 0; k < keys.length; k++) {
+                    var key = keys[k];
+                    if (bag[key] != null) bodyObj[key] = bag[key];
+                }
+                var bind = act.bind || [];
+                for (var b = 0; b < bind.length; b++) if (bag[bind[b]] != null) bodyObj[bind[b]] = bag[bind[b]];
+                var url = ((vm.$root && vm.$root.appRootPath) || '') + path;
+                var init = { method: method, credentials: 'same-origin',
+                    headers: { 'Accept': 'application/json', 'X-CSRF-Token': vm.csrf } };
+                if (method !== 'GET' && method !== 'HEAD') {
+                    init.headers['Content-Type'] = 'application/json';
+                    init.body = JSON.stringify(bodyObj);
+                } else {
+                    var q = [];
+                    var qf = act.queryFromFields;
+                    if (!qf || !qf.length) qf = Object.keys(vm.fieldValues);
+                    for (var qi = 0; qi < qf.length; qi++) {
+                        var qk = qf[qi];
+                        if (bag[qk] != null && bag[qk] !== '') q.push(encodeURIComponent(qk) + '=' + encodeURIComponent(bag[qk]));
+                    }
+                    if (q.length) url += (url.indexOf('?') >= 0 ? '&' : '?') + q.join('&');
+                }
+                return fetch(url, init).then(function(r) {
+                    return r.text().then(function(txt) {
+                        var ct = r.headers && r.headers.get ? r.headers.get('Content-Type') : null;
+                        if (isHtmlBody(txt, ct)) {
+                            failed[act.id] = true;
+                            results.push({ id: act.id, status: r.status, error: HTML_ACTION_ERROR });
+                            vm.noteCanvas(HTML_ACTION_ERROR, 'error');
+                            var htmlErr = new Error((act.label || act.id) + ' returned HTML, not JSON');
+                            htmlErr.actionResults = results;
+                            throw htmlErr;
+                        }
+                        var parsed = txt;
+                        try { parsed = JSON.parse(txt); } catch (e) { /* keep */ }
+                        var problems = screenResponseProblems(parsed);
+                        for (var wi = 0; wi < problems.warnings.length; wi++)
+                            vm.noteCanvas(problems.warnings[wi], 'warning');
+                        var failedMsg = null;
+                        if (problems.errors.length) failedMsg = problems.errors.join('\n');
+                        else if (r.status >= 400) failedMsg = (act.label || act.id) + ' failed: ' + r.status;
+                        var row = { id: act.id, status: r.status, body: parsed };
+                        if (failedMsg) row.error = failedMsg;
+                        results.push(row);
+                        if (failedMsg) {
+                            failed[act.id] = true;
+                            if (problems.errors.length) {
+                                for (var ei = 0; ei < problems.errors.length; ei++)
+                                    vm.noteCanvas(problems.errors[ei], 'error');
+                            } else vm.noteCanvas(failedMsg, 'error');
+                            var err = new Error(failedMsg);
+                            err.actionResults = results;
+                            throw err;
+                        }
+                        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+                            Object.keys(parsed).forEach(function(pk) {
+                                if (!RESPONSE_ENVELOPE[pk]) bag[pk] = parsed[pk];
+                            });
+                        }
+                        return next(i + 1);
+                    });
+                });
+            }
+            return next(0);
+        },
+        runSse: function(url, body) {
+            var vm = this;
+            // A turn replaces an in-flight open, same as New.
+            this.openGen = (this.openGen || 0) + 1;
+            this.streaming = true;
+            this.abortCtl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+            var assistant = { role: 'assistant', content: '', pending: true, connected: false };
+            this.messages.push(assistant);
+            fetch(url, {
+                method: 'POST', credentials: 'same-origin',
+                headers: this.headers(true),
+                body: JSON.stringify(body),
+                signal: this.abortCtl ? this.abortCtl.signal : undefined
+            }).then(function(resp) {
+                if (!resp.ok && resp.status !== 200) {
+                    return resp.json().catch(function() { return {}; }).then(function(err) {
+                        throw new Error(err.message || ('HTTP ' + resp.status));
+                    });
+                }
+                if (!resp.body || !resp.body.getReader) {
+                    return resp.json().then(function(j) { vm.handleJsonTurn(j, assistant); });
+                }
+                var reader = resp.body.getReader();
+                var decoder = new TextDecoder('utf-8');
+                var buf = '';
+                function pump() {
+                    return reader.read().then(function(chunk) {
+                        if (chunk.done) {
+                            vm.streaming = false;
+                            vm.loadConversations(vm.convPageIndex || 0);
+                            return;
+                        }
+                        buf += decoder.decode(chunk.value, { stream: true });
+                        buf = parseSseChunk(buf, function(event, data) { vm.onSse(event, data, assistant); });
+                        return pump();
+                    });
+                }
+                return pump();
+            }).catch(function(err) {
+                vm.streaming = false;
+                if (err && err.name === 'AbortError') return;
+                var msg = (err && err.message) || String(err);
+                assistNotify(msg, 'warning');
+                assistant.content = assistant.content || msg;
+            });
+        },
+        onSse: function(event, data, assistant) {
+            if (event === 'conversation' && data && data.conversationId) {
+                var first = !this.conversationId;
+                this.conversationId = data.conversationId;
+                try { sessionStorage.setItem(CONV_STORAGE_KEY, data.conversationId); } catch (e) { /* ignore */ }
+                if (first) this.maybeTitle();
+            } else if (event === 'llm') {
+                assistant.connected = true;
+            } else if (event === 'delta' && data && data.content) {
+                assistant.content = (assistant.content || '') + data.content;
+            } else if (event === 'write_ui_delta') {
+                this.applyOpenUiDelta(data && data.arguments);
+            } else if (event === 'tool_call') {
+                this.messages.push({ role: 'tool', kind: 'call', name: data && data.name,
+                    arguments: data && data.arguments, summary: data && data.summary });
+            } else if (event === 'tool_result') {
+                this.messages.push({ role: 'tool', kind: 'result', name: data && data.name,
+                    content: data && data.content, summary: data && data.summary });
+            } else if (event === 'yield') {
+                this.pendingToolCalls = (data && data.pendingToolCalls) || [];
+                var call = this.pendingToolCalls[0];
+                var args = call && call.arguments;
+                if (typeof args === 'string') { try { args = JSON.parse(args); } catch (e) { args = null; } }
+                if (isWriteUiArgs(args)) this.applyYield(args);
+                // FUTURE: args.kind === 'screen-xml' → POST to a compile/render transition (server round-trip)
+                this.streaming = false;
+                this.loadConversations(this.convPageIndex || 0);
+            } else if (event === 'done') {
+                this.streaming = false;
+                if (data && !data.yielded) this.pendingToolCalls = [];
+                var doneLine = formatDoneLine(data);
+                if (doneLine) this.messages.push({ role: 'done', content: doneLine });
+                this.loadConversations(this.convPageIndex || 0);
+            } else if (event === 'error') {
+                this.streaming = false;
+                assistNotify((data && data.message) || 'LLM error', 'warning');
+            }
+        },
+        handleJsonTurn: function(j, assistant) {
+            this.streaming = false;
+            if (j.conversationId) this.conversationId = j.conversationId;
+            if (j.content) assistant.content = j.content;
+            if (j.yielded && j.pendingToolCalls) {
+                this.pendingToolCalls = j.pendingToolCalls;
+                var call = this.pendingToolCalls[0];
+                var args = call && call.arguments;
+                if (typeof args === 'string') { try { args = JSON.parse(args); } catch (e) { args = null; } }
+                if (isWriteUiArgs(args)) this.applyYield(args);
+            }
+            var doneLine = formatDoneLine(j);
+            if (doneLine) this.messages.push({ role: 'done', content: doneLine });
+            this.loadConversations(this.convPageIndex || 0);
+        },
+        maybeTitle: function() {
+            if (!this.conversationId) return;
+            var first = this.messages.filter(function(m) { return m.role === 'user'; })[0];
+            if (!first || !first.content) return;
+            var title = first.content.length > 80 ? first.content.slice(0, 77) + '...' : first.content;
+            $.ajax({ type: 'POST', url: 'setTitle', dataType: 'json',
+                data: { moquiSessionToken: this.csrf, conversationId: this.conversationId, title: title } });
+        },
+        clearLocalSession: function() {
+            this.conversationId = null;
+            try { sessionStorage.removeItem(CONV_STORAGE_KEY); } catch (e) { /* ignore */ }
+            this.canvasId = 'c' + Date.now();
+            this.messages = [];
+            this.pendingToolCalls = [];
+            this.schema = null;
+            this.fieldValues = {};
+            this.dirtyFields = {};
+            this.canvasNotices = [];
+            this.adjustOpen = false;
+            this.adjustText = '';
+            this.autoValidationCount = 0;
+            this.lastAutoHash = '';
+            this.vueSfcComp = null;
+            this.vueSfcKey = null;
+            this.vueSfcFailed = false;
+            this.vueSfcGen = (this.vueSfcGen || 0) + 1;
+        },
+        cancelTurn: function() {
+            var inFlight = this.streaming;
+            if (inFlight && this.abortCtl) try { this.abortCtl.abort(); } catch (e) { /* ignore */ }
+            if (!inFlight) this.abortCtl = null;
+            this.streaming = false;
+            if (!inFlight || !this.conversationId) return;
+            fetch(this.llmBase + '/chat/' + encodeURIComponent(this.conversationId) + '/cancel', {
+                method: 'POST', credentials: 'same-origin',
+                headers: this.headers(false), body: '{}'
+            }).catch(function() { /* ignore */ });
+        },
+        setupSpeech: function() {
+            var Rec = window.SpeechRecognition || window.webkitSpeechRecognition;
+            this.speechSupported = !!Rec;
+            if (!Rec) return;
+            var rec = new Rec();
+            rec.lang = (navigator.language || 'en-US');
+            rec.interimResults = false;
+            var vm = this;
+            rec.onresult = function(ev) {
+                var t = ev.results && ev.results[0] && ev.results[0][0] && ev.results[0][0].transcript;
+                if (t) vm.composer = (vm.composer ? vm.composer + ' ' : '') + t;
+            };
+            rec.onend = function() { vm.recognizing = false; };
+            this.recognition = rec;
+        },
+        toggleMic: function() {
+            if (!this.recognition) return;
+            if (this.recognizing) { this.recognition.stop(); this.recognizing = false; }
+            else { this.recognition.start(); this.recognizing = true; }
+        },
+        widgetComponent: function(widget) {
+            if (widget === 'text-area') return 'q-input';
+            if (widget === 'drop-down') return 'q-select';
+            if (widget === 'date-time') return 'm-date-time';
+            if (widget === 'display' || widget === 'display-entity') return 'div';
+            return 'm-text-line';
+        },
+        toolSummary: function(m) {
+            if (!m) return '';
+            if (m.summary) return m.summary;
+            if (m.kind === 'call') return formatArgsFallback(m.name, m.arguments);
+            if (m.kind === 'result') return formatResultFallback(m.name, m.content);
+            return '';
+        }
+    },
+    created: function() {
+        this.ensureOpenUiHost();
+        this.loadOpenUi();
+    },
+    mounted: function() {
+        this.canvasId = 'c' + Date.now();
+        this.loadPrefs();
+        this.loadProfiles();
+        this.loadConversations(0);
+        var saved = null;
+        try { saved = sessionStorage.getItem(CONV_STORAGE_KEY); } catch (e) { /* ignore */ }
+        if (saved) this.openConversation(saved);
+        this.setupSpeech();
+        var vm = this;
+        this.onViewport = function() { vm.viewportWidth = window.innerWidth; };
+        window.addEventListener('resize', this.onViewport);
+        this.placePanes();
+    },
+    updated: function() { this.placePanes(); },
+    beforeDestroy: function() {
+        if (this.onViewport) window.removeEventListener('resize', this.onViewport);
+        this.cancelTurn();
+        if (this.recognition && this.recognizing) try { this.recognition.stop(); } catch (e) { /* ignore */ }
+    }
+};
+</script>
+<style>
+.assist-root { min-height: 60vh; position: relative; }
+.assist-conv-backdrop { position: absolute; inset: 0; z-index: 15; background: rgba(0,0,0,0.12); }
+.assist-conv-drawer {
+    position: absolute; top: 0; bottom: 0; width: 320px; max-width: 92%; z-index: 16;
+    background: #fff; box-shadow: 0 0 16px rgba(0,0,0,0.18); display: flex;
+}
+.assist-conv-left { left: 0; }
+.assist-conv-right { right: 0; }
+.assist-pane-host { height: 100%; min-height: 0; }
+.assist-pane-holder { display: none; }
+.assist-split-flip .assist-chat { border-right: none; border-left: 1px solid rgba(0,0,0,0.08); }
+.assist-mobile-chat .q-splitter__separator,
+.assist-mobile-chat .q-splitter__after { display: none; }
+.assist-mobile-chat .q-splitter__before { width: 100% !important; max-width: 100% !important; }
+.assist-mobile-screen .q-splitter__separator,
+.assist-mobile-screen .q-splitter__before { display: none; }
+.assist-mobile-screen .q-splitter__after { width: 100% !important; max-width: 100% !important; }
+.assist-conv-row { border-bottom: 1px solid rgba(0,0,0,0.06); }
+.assist-conv-open { background: rgba(25, 118, 210, 0.08); }
+.assist-source-pre {
+    margin: 0; max-height: 40vh; overflow: auto; white-space: pre-wrap; word-break: break-word;
+    background: #f5f5f5; padding: 8px; border-radius: 4px; font-size: 12px;
+}
+.assist-pane { height: 100%; overflow: hidden; }
+.assist-chat { border-right: 1px solid rgba(0,0,0,0.08); }
+/* qapps does not load webroot-theme.css, so the shared .spinner rules never apply here.
+   The marks stay drawn; only the rotation waits for the model connection. */
+@keyframes assist-spin { to { transform: rotate(1turn); } }
+.assist-chat .assist-wait {
+    position: relative; display: inline-block; width: 18px; height: 18px; overflow: hidden;
+    animation: assist-spin 0.9s infinite steps(8); animation-play-state: paused;
+}
+.assist-chat .assist-wait.assist-wait-go { animation-play-state: running; }
+.assist-chat .assist-wait:before, .assist-chat .assist-wait:after,
+.assist-chat .assist-wait > div:before, .assist-chat .assist-wait > div:after {
+    content: ''; position: absolute; top: 0; left: 7.5px; width: 3px; height: 5px; border-radius: 1px;
+    background: #555; box-shadow: 0 13px #ccc; transform-origin: 50% 9px;
+}
+.assist-chat .assist-wait:after { transform: rotate(-45deg); background: #777; }
+.assist-chat .assist-wait > div:before { transform: rotate(-90deg); background: #999; }
+.assist-chat .assist-wait > div:after { transform: rotate(-135deg); background: #bbb; }
+/* Gutter classes use a negative margin, which overflow:auto clips. Gap keeps the first control's border inside the scrollport. */
+.assist-canvas-body { padding: 12px 16px 24px; box-sizing: border-box; }
+.assist-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 16px; }
+</style>
