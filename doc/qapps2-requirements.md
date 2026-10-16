@@ -110,17 +110,15 @@ flowchart LR
 ### 6.3 导航与 Assist
 
 - 将 SimpleScreens 的 `MyAccountNav.qvue`、`ActiveOrgNav.qvue`、`QuickSearch.qvue` **复制进本组件** 再适配（可保留 `module.exports`）
-- 不改 tools `Assist.qvue` / WriteUiTool 源文件；用本组件 `MoquiConf` 覆盖
-  `/apps/assist`：`qvue` → tools（Vue2），`qvue2` → 本组件 `Assist.qvue`（Vue3）
-- OpenUI 运行时在 `qapps2static/js/assist/`（Vue3 移植），由 `qapps2.xml` /
-  `Assist.qvue` 加载；上游同步见 `doc/upstream-qapps-sync.md`
+- 不改 webroot `Assist.qvue`。qapps2 的壳层静态 SFC 在 `qapps2static/js/assist/Assist.qvue`（Vue 3）。顶栏按钮在用户有 `LlmGateway` 时加载，不再覆盖 `/apps/assist`。
+- OpenUI 运行时在 `qapps2static/js/assist/`（Vue 3），由 Assist SFC 按需加载；上游同步见 `doc/upstream-qapps-sync.md`
 - QZ 打印本轮不迁
 
 ## 7. 明确不改
 
 - `runtime/base-component/webroot/**`（含 `qapps.xml`、`WebrootVue.qvt.*`、`libs/vue`、`libs/quasar`、`build.gradle`）
 - `runtime/template/screen-macro/DefaultScreenMacros.qvt.ftl`
-- tools Assist 源文件
+- webroot Assist 源文件（qapps2 使用自己的壳层 SFC）
 - `MoquiDefaultConf.xml`
 - `/vapps`、`/apps` 行为与菜单
 

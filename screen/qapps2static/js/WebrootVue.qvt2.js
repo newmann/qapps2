@@ -177,6 +177,54 @@ moqui.notifyGrowl = function(jsonObj) {
     moqui.webrootVue.addNotify(jsonObj.title, jsonObj.type, jsonObj.link, jsonObj.icon);
 };
 
+moqui.screenForms = [];
+moqui.registerScreenForm = function(vm) {
+    if (!vm || moqui.screenForms.indexOf(vm) >= 0) return;
+    moqui.screenForms.push(vm);
+};
+moqui.unregisterScreenForm = function(vm) {
+    var i = moqui.screenForms.indexOf(vm);
+    if (i >= 0) moqui.screenForms.splice(i, 1);
+};
+/** A form-link navigates. An m-form submits only for a read-only GET. Posts stay a user click. */
+moqui.screenSubmitAllowed = function(vm) {
+    if (!vm || !vm.$options) return false;
+    var name = vm.$options.name;
+    if (name === 'mFormLink') return true;
+    if (name !== 'mForm') return false;
+    var method = String(vm.method || 'POST').toUpperCase();
+    return method === 'GET' && vm.readOnly === true;
+};
+moqui.formForElement = function(el) {
+    if (!el) return null;
+    var forms = moqui.screenForms;
+    for (var i = forms.length - 1; i >= 0; i--) {
+        var vm = forms[i];
+        if (vm && vm.$el && vm.$el.contains && vm.$el.contains(el)) return vm;
+    }
+    return null;
+};
+moqui.notifyScreenWatch = function(vm, eventName, extra) {
+    var root = vm && vm.$root;
+    if (root && root.assistNavSilent) return;
+    var assist = window.moquiAssistVm;
+    if (!assist || typeof assist.onScreenEvent !== 'function') return;
+    var attrs = (vm && vm.$attrs) || {};
+    var info = extra || {};
+    assist.onScreenEvent({
+        event: eventName,
+        form: attrs.id || attrs.name || (vm && vm.name) || '',
+        action: vm && vm.action,
+        method: (vm && vm.method) || '',
+        navigationOnly: moqui.screenSubmitAllowed(vm),
+        fields: vm && vm.fields,
+        messageInfos: info.messageInfos || null,
+        errors: info.errors || null,
+        validationErrors: info.validationErrors || null,
+        screenUrl: info.screenUrl || info.redirectUrl || ''
+    });
+};
+
 /* ========== component loading methods ========== */
 moqui.componentCache = new moqui.LruMap(50);
 
@@ -234,6 +282,8 @@ moqui.loadComponent = function(urlInfo, callback, divId) {
         isSfcPath = true;
     }
     if (isSfcPath) {
+        if (extraPath && extraPath.length > 0) url += ('/' + extraPath);
+        if (search && search.length > 0) url += ('?' + search);
         moqui.qapps2Log("loadComponent vue " + url);
         var vueAjaxSettings = { type:"GET", url:url, error:moqui.handleLoadError, success: function(resp, status, jqXHR) {
                 if (jqXHR.status === 205) {
@@ -1041,6 +1091,7 @@ qapps2Register('m-form', {
             xhr.send(formData);
         },
         handleResponse: function(resp) {
+            if (moqui.notifyScreenWatch) moqui.notifyScreenWatch(this, 'submit', resp);
             var notified = false;
             // console.info('m-form response ' + JSON.stringify(resp));
             if (resp && moqui.isPlainObject(resp)) {
@@ -1080,7 +1131,9 @@ qapps2Register('m-form', {
         // TODO: find other way to get button clicked (Vue event?)
         // watch button clicked
         jqEl.find('button[type="submit"], input[type="submit"], input[type="image"]').on('click', function() { vm.buttonClicked = this; });
-    }
+        moqui.registerScreenForm(this);
+    },
+    beforeUnmount: function() { moqui.unregisterScreenForm(this); }
 });
 qapps2Register('m-form-link', {
     name: "mFormLink",
@@ -1176,6 +1229,7 @@ qapps2Register('m-form-link', {
             var url = this.action;
             if (url.indexOf('?') > 0) { url = url + '&' + parmStr; } else { url = url + '?' + parmStr; }
             // console.log("form-link url " + url + " bodyParameters " + JSON.stringify(bodyParameters));
+            if (moqui.notifyScreenWatch) moqui.notifyScreenWatch(this, 'submit', { screenUrl: url });
             this.$root.setUrl(url, bodyParameters);
 
         },
@@ -1205,7 +1259,9 @@ qapps2Register('m-form-link', {
             var focusEl = this.$el && this.$el.querySelector('[name="' + this.focusField + '"]');
             if (focusEl) { focusEl.classList.add('default-focus'); focusEl.focus(); }
         }
-    }
+        moqui.registerScreenForm(this);
+    },
+    beforeUnmount: function() { moqui.unregisterScreenForm(this); }
 });
 
 qapps2Register('m-form-paginate', {
@@ -1511,7 +1567,9 @@ qapps2Register('m-form-list', {
     mounted: function() {
         this.searchObj = $.extend({}, this.$root.currentParameters || {}, this.search || {});
         if (moqui.isArray(this.rows)) { this.rowList = this.rows; } else { this.fetchRows(); }
-    }
+        moqui.registerScreenForm(this);
+    },
+    beforeUnmount: function() { moqui.unregisterScreenForm(this); }
 });
 
 /* ========== form field widget components ========== */
@@ -2466,7 +2524,9 @@ var qapps2RootOptions = {
         lastNavTime:Date.now(), loading:0, currentLoadRequest:null, activeContainers:{}, urlListeners:[],
         moquiSessionToken:"", appHost:"", appRootPath:"", userId:"", username:"", locale:"en",
         reLoginShow:false, reLoginPassword:null, reLoginMfaData:null, reLoginOtp:null,
-        notificationClient:null, sessionTokenBc:null, qzVue:null, leftOpen:false, moqui:moqui }; },
+        notificationClient:null, sessionTokenBc:null, qzVue:null, leftOpen:false, moqui:moqui,
+        assistEnabled:false, assistComp:null, assistOpen:false, assistSide:'left', assistNarrow:false, menuOverlay:false,
+        assistCanvasOn:false, assistPanelPx:420, assistNavSilent:false }; },
     methods: {
         setUrl: function(url, bodyParameters, onComplete, pushState=true) {
             // cancel current load if needed
@@ -2484,6 +2544,9 @@ var qapps2RootOptions = {
                 this.reloadSubscreens(); /* console.info('reloading, same url ' + url); */
                 if (onComplete) this.callOnComplete(onComplete, this.currentPath);
             } else {
+                if (this.assistCanvasOn && !this.assistNavSilent && window.moquiAssistVm
+                        && typeof window.moquiAssistVm.onUserNavigate === 'function')
+                    window.moquiAssistVm.onUserNavigate();
                 var redirectedFrom = this.currentPath;
                 var urlInfo = moqui.parseHref(url);
                 // clear out extra path, to be set from nav menu data if needed
@@ -2491,6 +2554,10 @@ var qapps2RootOptions = {
                 // set currentSearch before currentPath so that it is available when path updates
                 this.currentSearch = urlInfo.search;
                 this.currentPath = urlInfo.path;
+                if (!this.assistNavSilent && window.moquiAssistVm
+                        && typeof window.moquiAssistVm.onScreenEvent === 'function')
+                    window.moquiAssistVm.onScreenEvent({ event: 'navigate', path: this.currentPath,
+                        search: this.currentSearch || '' });
                 // with url cleaned up through setters now get current screen url for menu
                 var srch = this.currentSearch;
                 var screenUrl = this.currentPath + (srch.length > 0 ? '?' + srch : '');
@@ -2627,6 +2694,68 @@ var qapps2RootOptions = {
             this.leftOpen = !this.leftOpen;
             $.ajax({ type:'POST', url:(this.appRootPath + '/apps/setPreference'), error:moqui.handleAjaxError,
                 data:{ moquiSessionToken:this.moquiSessionToken, preferenceKey:'QUASAR_LEFT_OPEN', preferenceValue:(this.leftOpen ? 'true' : 'false') } });
+        },
+        persistAssistPref: function(key, value) {
+            $.ajax({ type:'POST', url:(this.appRootPath + '/apps/setPreference'), error:moqui.handleAjaxError,
+                data:{ moquiSessionToken:this.moquiSessionToken, preferenceKey:key, preferenceValue:value } });
+        },
+        toggleAssist: function() {
+            this.assistOpen = !this.assistOpen;
+            this.persistAssistPref('ASSIST_OPEN', this.assistOpen ? 'true' : 'false');
+        },
+        openAssist: function() {
+            if (!this.assistEnabled) return;
+            if (this.assistOpen) return;
+            this.assistOpen = true;
+            this.persistAssistPref('ASSIST_OPEN', 'true');
+        },
+        syncAssistNarrow: function() {
+            var platform = window.Quasar && (Quasar.Platform || Quasar.platform);
+            var phone = platform && platform.is && platform.is.mobile;
+            this.assistNarrow = window.innerWidth <= 600 || !!phone;
+            this.menuOverlay = window.innerWidth < 1024;
+        },
+        startAssistResize: function(ev) {
+            if (this.assistNarrow || !ev) return;
+            var vm = this;
+            var originX = ev.clientX;
+            var originPx = this.assistPanelPx;
+            var side = this.assistSide;
+            var move = function(e) {
+                var delta = e.clientX - originX;
+                if (side === 'right') delta = -delta;
+                var next = originPx + delta;
+                var max = Math.floor(window.innerWidth * 0.5);
+                if (next < 320) next = 320;
+                if (next > max) next = max;
+                vm.assistPanelPx = next;
+            };
+            var up = function() {
+                document.removeEventListener('mousemove', move);
+                document.removeEventListener('mouseup', up);
+                vm.persistAssistPref('ASSIST_DRAWER_PX', String(vm.assistPanelPx));
+            };
+            document.addEventListener('mousemove', move);
+            document.addEventListener('mouseup', up);
+        },
+        loadAssistComponent: function() {
+            var conf = moqui.qapps2Conf || {};
+            if (conf.assist !== 'true') return;
+            this.assistEnabled = true;
+            var vm = this;
+            var path = (this.appRootPath || '') + '/qapps2static/js/assist/Assist.qvue';
+            var cached = moqui.componentCache.get(path);
+            if (cached) { this.assistComp = cached; return; }
+            $.ajax({ type:'GET', url:path, dataType:'text', error:function() { vm.assistEnabled = false; },
+                success:function(resp, status, jqXHR) {
+                    if (!resp) { vm.assistEnabled = false; return; }
+                    moqui.parseSfc(resp, path).then(function(comp) {
+                        comp = qapps2RawComp(comp);
+                        var cacheControl = jqXHR.getResponseHeader('Cache-Control') || '';
+                        if (cacheControl.indexOf('max-age') >= 0) moqui.componentCache.put(path, comp);
+                        vm.assistComp = comp;
+                    }).catch(function() { vm.assistEnabled = false; });
+                }});
         },
         stopProp: function (e) { e.stopPropagation(); },
         getNavHref: function(navIndex) {
@@ -2827,6 +2956,9 @@ var qapps2RootOptions = {
             navHistoryList.unshift({ title:newTitle, pathWithParams:curUrl, image:cur.image, imageType:cur.imageType });
             while (navHistoryList.length > 25) { navHistoryList.pop(); }
             document.title = newTitle;
+            var onAssist = !!(cur.path && /\/assist\/?$/.test(cur.path));
+            if (onAssist && this._assistSeenPath !== cur.path) this.openAssist();
+            this._assistSeenPath = cur.path;
         }},
         currentPathList: function(newList) {
             // console.info('set currentPathList to ' + JSON.stringify(newList) + ' activeSubscreens.length ' + this.activeSubscreens.length);
@@ -2882,6 +3014,8 @@ var qapps2RootOptions = {
         this.locale = conf.locale || 'en';
         if (moqui.localeMap[this.locale]) this.locale = moqui.localeMap[this.locale];
         this.leftOpen = conf.leftOpen === 'true';
+        this.assistOpen = conf.assist === 'true' && conf.assistOpen === 'true';
+        this.syncAssistNarrow();
 
         var darkMode = conf.darkMode === "true";
         try {
@@ -2911,6 +3045,11 @@ var qapps2RootOptions = {
         this.setUrl(window.location.pathname + window.location.search);
         // init the NotificationClient and register 'displayNotify' as the default listener
         this.notificationClient.registerListener("ALL");
+        this.syncAssistNarrow();
+        var vmAssist = this;
+        this._assistResizeListener = function() { vmAssist.syncAssistNarrow(); };
+        window.addEventListener('resize', this._assistResizeListener);
+        this.loadAssistComponent();
 
         // request Notification permission on load if not already granted or denied
         if (window.Notification && Notification.permission !== "granted" && Notification.permission !== "denied") {
@@ -2925,6 +3064,7 @@ var qapps2RootOptions = {
     },
     beforeUnmount: function() {
         this.sessionTokenBc.close();
+        if (this._assistResizeListener) window.removeEventListener('resize', this._assistResizeListener);
     }
 
 };
@@ -3001,6 +3141,8 @@ function qapps2ReadConf(rootEl) {
         locale: val('confLocale'),
         darkMode: val('confDarkMode'),
         leftOpen: val('confLeftOpen'),
+        assist: val('confAssist'),
+        assistOpen: val('confAssistOpen'),
         navPluginUrlList: vals('confNavPluginUrl'),
         accountPluginUrlList: vals('confAccountPluginUrl')
     };
@@ -3054,8 +3196,11 @@ moqui.parseSfc = function(source, url) {
     var loader = window['vue3-sfc-loader'];
     if (!loader || !loader.loadModule) return Promise.reject(new Error('vue3-sfc-loader missing'));
     var origId = url || ('inline-' + Date.now() + '.vue');
-    // vue3-sfc-loader only compiles .vue; qapps2 / copied nav SFCs use .qvue and .qvue2
-    var id = origId.replace(/\.qvue2$/i, '.vue').replace(/\.qvue$/i, '.vue');
+    // vue3-sfc-loader only compiles .vue and reads the path extension (before ?/#).
+    // Chat.qvue2?kbId=1 does not end with .qvue2, so strip the query first or the
+    // loader keeps .qvue2 and refuses the file.
+    var pathOnly = origId.split(/[?#]/)[0];
+    var id = pathOnly.replace(/\.qvue2$/i, '.vue').replace(/\.qvue$/i, '.vue');
     if (!/\.vue$/i.test(id)) id = id + '.vue';
     // copied nav components keep module.exports; the loader expects ESM
     var sfcSource = String(source || '').replace(/module\.exports\s*=/, 'export default ');

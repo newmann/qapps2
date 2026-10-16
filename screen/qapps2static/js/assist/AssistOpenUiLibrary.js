@@ -1247,6 +1247,38 @@
         }).catch(function(err) { cb(err); });
     }
 
+    function registerMarkdownComponent() {
+        registerOpenUiComponent('assist-markdown', {
+            name: 'assist-markdown',
+            props: { text: { type: String, default: '' } },
+            data: function() { return { loadError: null }; },
+            mounted: function() { this.draw(); },
+            watch: { text: function() { this.draw(); } },
+            methods: {
+                draw: function() {
+                    var vm = this;
+                    var el = this.$refs.body;
+                    if (!el) return;
+                    if (!vm.text) { el.textContent = ''; return; }
+                    loadMarkdownStack(function(err) {
+                        if (err) {
+                            vm.loadError = 'Markdown libraries failed to load';
+                            el.textContent = String(vm.text);
+                            return;
+                        }
+                        vm.loadError = null;
+                        renderMarkdownInto(el, vm.text, true);
+                    });
+                }
+            },
+            template: '<div>' +
+                '<div v-if="loadError" class="text-negative text-caption">{{loadError}}</div>' +
+                '<div ref="body"></div></div>'
+        });
+    }
+    registerMarkdownComponent();
+    root.registerAssistMarkdownComponent = registerMarkdownComponent;
+
     root.AssistOpenUiLibrary = library;
     root.assistFormatDateValue = assistFormatDateValue;
     root.loadAssistOpenUiSpec = loadSpec;

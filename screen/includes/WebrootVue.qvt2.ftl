@@ -12,6 +12,10 @@ qapps2 Vue 3 + Quasar 2 shell. Independent copy of WebrootVue.qvt.ftl.
     <input type="hidden" id="confLocale" value="${ec.user.locale.toLanguageTag()}">
     <input type="hidden" id="confDarkMode" value="${ec.user.getPreference("QUASAR_DARK")!"false"}">
     <input type="hidden" id="confLeftOpen" value="${ec.user.getPreference("QUASAR_LEFT_OPEN")!"false"}">
+    <input type="hidden" id="confAssistOpen" value="${ec.user.getPreference("ASSIST_OPEN")!"false"}">
+    <#if ec.user.hasPermission("LlmGateway")>
+    <input type="hidden" id="confAssist" value="true">
+    </#if>
     <#assign navbarCompList = sri.getThemeValues("STRT_HEADER_NAVBAR_COMP")>
     <#list navbarCompList! as navbarCompUrl><input type="hidden" class="confNavPluginUrl" value="${navbarCompUrl}"></#list>
     <#assign accountCompList = sri.getThemeValues("STRT_HEADER_ACCOUNT_COMP")>
@@ -19,6 +23,10 @@ qapps2 Vue 3 + Quasar 2 shell. Independent copy of WebrootVue.qvt.ftl.
 
     <q-layout view="hHh LpR fFf">
         <q-header bordered id="top" class="qapps2-header"><q-toolbar class="qapps2-toolbar">
+            <#-- Assist opens the panel. It sits left of the menu button so the panel and the icon share a side. -->
+            <q-btn v-if="assistEnabled" dense flat icon="forum" :color="assistOpen ? 'amber' : void 0" @click="toggleAssist()">
+                <q-tooltip>${ec.l10n.localize("Assist")}</q-tooltip>
+            </q-btn>
             <q-btn dense flat icon="menu" @click="toggleLeftOpen()"></q-btn>
 
             <#assign headerLogoList = sri.getThemeValues("STRT_HEADER_LOGO")>
@@ -130,14 +138,32 @@ qapps2 Vue 3 + Quasar 2 shell. Independent copy of WebrootVue.qvt.ftl.
             </q-btn>
         </q-toolbar></q-header>
 
-        <q-drawer v-model="leftOpen" side="left" bordered class="qapps2-drawer">
-            <q-btn dense flat icon="menu" @click="toggleLeftOpen()" class="lt-sm"></q-btn>
-            <q-list dense padding><m-menu-nav-item :menu-index="0"></m-menu-nav-item></q-list>
-        </q-drawer>
-
-        <q-page-container class="qapps2-page-wrap"><q-page>
-            <m-subscreens-active></m-subscreens-active>
-        </q-page></q-page-container>
+        <q-page-container class="qapps2-page-wrap">
+            <#-- Under the header: Assist, then the menu, then the page. The menu is not a q-drawer, so it cannot sit left of Assist. -->
+            <div class="assist-shell-row">
+                <div v-show="assistEnabled && assistOpen && !assistNarrow && assistSide==='left'" class="assist-panel-wrap" :style="{ width: assistPanelPx + 'px' }">
+                    <div id="assist-panel-slot" class="assist-panel-slot"></div>
+                    <div class="assist-panel-grip" @mousedown.prevent="startAssistResize"></div>
+                </div>
+                <div v-show="leftOpen" class="app-menu-col qapps2-drawer" :class="{ 'app-menu-overlay': menuOverlay }"
+                     :style="menuOverlay && assistEnabled && assistOpen && !assistNarrow && assistSide==='left' ? { left: assistPanelPx + 'px' } : null">
+                    <q-btn dense flat icon="menu" @click="toggleLeftOpen()" class="lt-sm"></q-btn>
+                    <q-list dense padding><m-menu-nav-item :menu-index="0"></m-menu-nav-item></q-list>
+                </div>
+                <q-page class="assist-page-col">
+                    <div id="assist-canvas-slot" v-show="assistCanvasOn" class="assist-canvas-slot"></div>
+                    <div v-show="!assistCanvasOn" class="qapps2-screen">
+                        <m-subscreens-active></m-subscreens-active>
+                    </div>
+                </q-page>
+                <div v-show="assistEnabled && assistOpen && !assistNarrow && assistSide==='right'" class="assist-panel-wrap" :style="{ width: assistPanelPx + 'px' }">
+                    <div class="assist-panel-grip" @mousedown.prevent="startAssistResize"></div>
+                    <div id="assist-panel-slot-right" class="assist-panel-slot"></div>
+                </div>
+            </div>
+            <div id="assist-panel-slot-narrow" v-show="assistEnabled && assistOpen && assistNarrow" class="assist-narrow-overlay"
+                 :class="assistSide==='right' ? 'assist-narrow-right' : 'assist-narrow-left'"></div>
+        </q-page-container>
 
         <q-footer reveal bordered class="qapps2-footer row q-px-md q-py-xs" id="footer">
             <#assign footerItemList = sri.getThemeValues("STRT_FOOTER_ITEM")>
@@ -172,6 +198,8 @@ qapps2 Vue 3 + Quasar 2 shell. Independent copy of WebrootVue.qvt.ftl.
             </q-form>
         </div>
     </m-dialog>
+    <#-- Assist mounts here and moves its chat and canvas into the slots above. -->
+    <div id="assist-mount" style="display:none"><component v-if="assistComp" :is="assistComp" :shell="true"></component></div>
 </div>
 
 <script>

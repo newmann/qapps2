@@ -1,52 +1,26 @@
 # AGENTS — qapps2
 
-Domain rules. Shared conventions: `.agents/component-common.md`.
-
-## Role
-
-Parallel UI entry (`/qapps2`) on Vue 3 + Quasar 2 UMD. Same screen tree as
-`/qapps` and `/apps`. Own macros, vendor files, and render modes.
-
-Depends on: `webroot`, `tools`.
+Vue 3 / Quasar 2 application shell for `/qapps2`. Shared conventions:
+`.agents/component-common.md`.
 
 ## Find things here
 
-- Requirements: `doc/qapps2-requirements.md`
-- Upstream sync triage: `doc/upstream-qapps-sync.md`
-- Dashboard kit: `doc/qapps2-dashboard.md`; JS under
-  `screen/qapps2static/js/dash/`; demo `/qapps2/dashboardKit`
-- Shell: `screen/qapps2.xml`; static: `screen/qapps2static/`
-- Assist overlay: `screen/Assist.xml` + `screen/Assist.qvue`; OpenUI under
-  `screen/qapps2static/js/assist/`
-- Macros: `template/screen-macro/`
-- Seed: `data/Qapps2ThemeData.xml`, `AppSeedData.xml` (incl. Assist on
-  `ASSIST_APP`), `Qapps2L10nData.xml`
-- Build: `build.gradle` (vendor under `screen/qapps2static/libs/` is generated)
+- Mount: `screen/qapps2.xml` (`/qapps2`), conf in `MoquiConf.xml`
+- Shell: `screen/includes/WebrootVue.qvt2.ftl`
+- SPA loader: `screen/qapps2static/js/WebrootVue.qvt2.js`
+- Production script: `screen/qapps2static/js/CombinedQvt2.min.js`
+  (`instance_purpose` empty or `production`). Dev loads `WebrootVue.qvt2.js`.
+- `WebrootVue.qvt2.min.js` and `CombinedQvt2.min.js` are build outputs
+  (`js/*.min.js` is gitignored). `minifyJsDir` minifies `WebrootVue.qvt2.js`;
+  `combineQvt2Js` concatenates that into `CombinedQvt2.min.js`.
 
-After clone or `cleanAll`:
+## Guardrails
 
-```bash
-./gradlew :runtime:component:qapps2:build
-```
-
-## Conventions
-
-- Do not edit `webroot` or tools Assist; mount only from this `MoquiConf.xml`
-- AJAX screens: `.qvt2` / `.qvue2` / `.qjs2`; `qvt`/`qvue`/`qjs` fall back
-- `confBasePath=/apps`, `confLinkBasePath=/qapps2`
-- Chinese l10n in `data/Qapps2L10nData.xml` only (no `qapps2-zh_CN` sidecar)
-- Do not add `depends-on` for `framework-zh_CN` or `base-component-zh_CN`
-- When webroot qapps / tools Assist change, triage per
-  `doc/upstream-qapps-sync.md` (port / already / N/A / Assist-queue)
-
-## Verify
-
-- Root redirects to `/qapps2/`; `/qapps` and `/apps` must keep working
-- Screen: `/qapps2/`; ServiceRun: `/qapps2/tools/Service/ServiceRun`
-- Assist: `/qapps2/assist` (Vue3) and `/qapps/assist` (Vue2) both load
-
-## Do not
-
-- Overwrite `webroot/libs/vue` or `webroot/libs/quasar`
-- Copy Vue2 `Vue.component` / `httpVueLoader` Assist scripts into this shell
-  without a Vue3 port
+- `.qvue2` loads must send the screen query string and extra path.
+  `loadComponent` appends both before the SFC request. Cache key stays the
+  path; only `Cache-Control: max-age` responses are cached.
+- Edit `WebrootVue.qvt2.js` only. Do not hand-edit `WebrootVue.qvt2.min.js`
+  or `CombinedQvt2.min.js`. Regenerate them with
+  `./gradlew :runtime:component:qapps2:build`.
+- Do not edit `runtime/base-component/webroot`. Screen mounts stay in this
+  component's `MoquiConf.xml`.

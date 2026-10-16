@@ -1,78 +1,74 @@
-<!-- qapps2 Vue 3 / Quasar 2 overlay of tools Assist.qvue; do not edit tools copy. -->
 <template>
-<div class="assist-root">
-    <div class="row items-center q-mb-sm q-col-gutter-sm">
-        <div class="col-auto">
-            <q-btn-toggle dense unelevated v-model="writeMode" :options="writeModeOptions"
-                          toggle-color="primary" @update:model-value="persistWriteMode"></q-btn-toggle>
-        </div>
-        <div class="col-auto">
-            <q-toggle dense v-model="forceSkillUse" label="Force Skill Use"
-                      @update:model-value="persistForceSkillUse"></q-toggle>
-        </div>
-        <div class="col text-caption text-grey-7">{{ writeModeHint }}</div>
-        <div class="col-auto">
-            <q-btn dense outline no-caps :label="chatOnLeft ? 'Chat | Screen' : 'Screen | Chat'"
-                   @click="toggleSide"></q-btn>
-        </div>
-        <div class="col-auto">
-            <q-btn id="assist-conversations" dense outline no-caps icon="history" label="Chats"
-                   @click="toggleConvDrawer"></q-btn>
-        </div>
-        <div class="col-auto">
-            <q-btn id="assist-source" dense outline no-caps icon="open_in_new" label="Source" :disable="!schema"
-                   @click="sourceOpen = true"></q-btn>
-        </div>
-        <div class="col-auto">
-            <q-btn dense outline no-caps label="New" @click="newSession"></q-btn>
-        </div>
-        <div class="col-auto">
-            <q-btn dense outline no-caps color="negative" label="Cancel" :disable="!streaming" @click="cancelTurn"></q-btn>
-        </div>
-    </div>
-    <q-tabs v-if="isMobile" v-model="mobileTab" dense class="text-primary">
-        <q-tab name="chat" label="Chat"></q-tab>
-        <q-tab name="screen" label="Screen"></q-tab>
-    </q-tabs>
-    <q-splitter v-model="splitterPct" class="assist-split" :class="splitClass" style="height: calc(100vh - 140px)">
-        <template v-slot:before>
-            <div ref="paneBefore" class="assist-pane-host"></div>
-        </template>
-        <template v-slot:after>
-            <div ref="paneAfter" class="assist-pane-host"></div>
-        </template>
-    </q-splitter>
-    <!-- Quasar sizes the before panel and treats it as the left side. The panes are moved into
-         that order so a rightward drag grows the left pane. Row-reverse made the drag run backwards. -->
+<div class="assist-root assist-shell">
+    <!-- Chat and canvas start here. placePanes moves them into the shell slots. Vue keeps the
+         elements; updated() puts them back if a patch reparents them. -->
     <div ref="paneHolder" class="assist-pane-holder">
-            <div ref="chatPane" class="assist-pane assist-chat q-pa-sm column" style="height:100%">
-                <div class="col overflow-auto" style="min-height:0">
+            <div ref="chatPane" class="assist-pane assist-chat column">
+                <div class="row items-center q-pa-xs q-col-gutter-xs">
+                    <div class="col-auto">
+                        <q-btn id="assist-conversations" dense outline no-caps icon="history" label="Chats"
+                               @click="toggleConvDrawer"></q-btn>
+                    </div>
+                    <div class="col-auto">
+                        <q-btn id="assist-settings" dense outline no-caps icon="open_in_new" label="Settings"
+                               @click="settingsOpen = true"></q-btn>
+                    </div>
+                    <q-space></q-space>
+                    <div class="col-auto">
+                        <q-btn dense outline icon="swap_horiz" @click="toggleSide" :disable="streaming"
+                               :aria-label="chatOnLeft ? 'Move Assist to the right' : 'Move Assist to the left'">
+                            <q-tooltip>{{ chatOnLeft ? 'Move Assist to the right' : 'Move Assist to the left' }}</q-tooltip>
+                        </q-btn>
+                    </div>
+                    <div class="col-auto">
+                        <q-btn id="assist-new" dense unelevated icon="add" color="positive" @click="newSession" aria-label="New chat">
+                            <q-tooltip>New chat</q-tooltip>
+                        </q-btn>
+                    </div>
+                    <div v-if="streaming" class="col-auto">
+                        <q-btn dense outline no-caps color="negative" label="Cancel" @click="cancelTurn"></q-btn>
+                    </div>
+                    <div class="col-12 text-caption text-grey-7">{{ writeModeHint }}<span v-if="sessionTurns"> · {{ sessionTurns }} turn{{ sessionTurns === 1 ? '' : 's' }} · {{ sessionTokens }} tokens</span></div>
+                </div>
+                <div class="col overflow-auto q-px-sm" style="min-height:0" role="log" aria-live="polite"
+                     aria-relevant="additions text" aria-label="Assist conversation">
                     <div v-for="(m, i) in messages" :key="i" class="q-mb-sm">
                         <div v-if="m.role!=='tool' && m.role!=='done'" class="text-caption text-grey-7">{{ m.role }}<span v-if="m.name"> {{ m.name }}</span></div>
-                        <div v-if="m.role==='tool'" class="text-caption">{{ m.kind }} {{ m.name }}<span v-if="toolSummary(m)"> — {{ toolSummary(m) }}</span></div>
-                        <div v-else-if="m.role==='done'" class="text-caption text-grey-7">{{ m.content }}</div>
+                        <div v-if="m.role==='tool'">
+                            <div class="text-caption assist-tool-row cursor-pointer" tabindex="0" role="button"
+                                 :aria-expanded="m._open ? 'true' : 'false'"
+                                 @click="toggleTool(m)" @keyup.enter.prevent="toggleTool(m)" @keyup.space.prevent="toggleTool(m)"
+                                 :title="m._open ? 'Collapse detail' : 'Expand detail'">{{ m.kind }} {{ m.name }}<span v-if="toolSummary(m)"> — {{ toolSummary(m) }}</span><span class="text-grey-5"> {{ m._open ? '▾' : '▸' }}</span></div>
+                            <div v-if="m._open" class="q-mt-xs">
+                                <pre class="assist-source-pre">{{ toolDetail(m) }}</pre>
+                                <div class="row justify-end"><q-btn flat dense no-caps label="Copy" @click.stop="copyText(toolDetail(m))"></q-btn></div>
+                            </div>
+                        </div>
+                        <div v-else-if="m.role==='done'" class="text-caption text-grey-7" :class="{ 'text-negative': m.error }">{{ m.content }}</div>
                         <div v-else-if="m.pending && !String(m.content || '').trim()"
                              class="assist-wait" :class="{ 'assist-wait-go': m.connected }" role="status"
                              :aria-label="m.connected ? 'Waiting for the model' : 'Connecting'"><div></div></div>
-                        <div v-else style="white-space:pre-wrap">{{ m.content }}</div>
+                        <div v-else-if="m.role==='assistant' && String(m.content || '').trim()">
+                            <div class="row items-start no-wrap">
+                                <div class="col assist-md">
+                                    <assist-markdown v-if="openUiRuntimeReady" :text="m.content"></assist-markdown>
+                                    <div v-else class="assist-md-fallback" v-html="renderMd(m)"></div>
+                                </div>
+                                <q-btn flat round dense icon="content_copy" title="Copy reply" aria-label="Copy reply"
+                                       @click="copyText(m.content || '')"></q-btn>
+                            </div>
+                        </div>
+                        <div v-else-if="String(m.content || '').trim()" style="white-space:pre-wrap">{{ m.content }}</div>
                     </div>
                 </div>
-                <div class="col-auto q-pt-sm">
-                    <q-input id="assist-composer" outlined autogrow v-model="composer" placeholder="Describe what you need"
-                             @keyup.enter.exact.prevent="send" :disable="streaming">
-                        <template v-slot:append>
-                            <q-btn v-if="speechSupported" flat round dense :icon="recognizing ? 'mic' : 'mic_none'"
-                                   @click="toggleMic"></q-btn>
-                            <q-btn id="assist-send" flat round dense icon="send" :disable="streaming || !composer"
-                                   @click="send"></q-btn>
-                        </template>
-                    </q-input>
+                <div v-if="screenWatch && !pendingConfirm()" class="col-auto q-pa-sm">
+                    <div class="text-body2 q-mb-xs">Watching this screen. Assist continues when you {{ screenWatchLabel() }}.</div>
+                    <q-btn id="assist-watch-cancel" outline no-caps label="Cancel" :disable="streaming"
+                           @click="cancelScreenWatch"></q-btn>
                 </div>
-            </div>
-            <div ref="canvasPane" class="assist-pane assist-canvas column" style="height:100%">
-                <div v-if="pendingConfirm()" class="q-pa-md">
+                <div v-if="pendingConfirm()" class="col-auto q-pa-sm">
                     <div class="text-subtitle1">Confirm this action</div>
-                    <div class="text-body2 q-mb-md" style="white-space:pre-wrap">{{ confirmSummary(pendingConfirm()) }}</div>
+                    <div class="text-body2 q-mb-sm" style="white-space:pre-wrap">{{ confirmSummary(pendingConfirm()) }}</div>
                     <div class="assist-actions">
                         <q-btn id="assist-confirm" unelevated color="primary" no-caps label="Confirm"
                                :disable="streaming" @click="confirmTool(true)"></q-btn>
@@ -80,10 +76,74 @@
                                :disable="streaming" @click="confirmTool(false)"></q-btn>
                     </div>
                 </div>
-                <div v-if="!schema && !pendingConfirm()" class="text-grey-7 q-pa-md">
-                    Describe what you need. Assist will build a screen here.</div>
-                <div v-else-if="schema" class="col overflow-auto assist-canvas-body">
-                    <div class="text-h6">{{ schema.title }}</div>
+                <div class="col-auto q-pa-sm">
+                    <q-input id="assist-composer" class="assist-composer" outlined autogrow type="textarea" v-model="composer"
+                             :placeholder="'What can I do for you?\n(Shift+Enter for newline)'"
+                             @keyup.enter.exact.prevent="send" :disable="streaming">
+                        <template v-slot:append>
+                            <q-btn v-if="speechSupported" flat round dense :icon="recognizing ? 'mic' : 'mic_none'"
+                                   @click="toggleMic" :disable="streaming" title="Voice input" aria-label="Voice input"></q-btn>
+                            <q-btn id="assist-send" flat round dense icon="send" :disable="streaming || !composer"
+                                   @click="send" title="Send" aria-label="Send"></q-btn>
+                        </template>
+                    </q-input>
+                </div>
+                <!-- Stay inside the chat pane. placePanes moves the pane, and a v-if sibling of
+                     the pane holder is no longer a child of that parent when the drawer closes. -->
+                <div v-if="convDrawer" class="assist-conv-backdrop" @click="convDrawer = false"></div>
+                <div v-if="convDrawer" id="assist-conv-drawer" class="assist-conv-drawer column"
+                     :class="chatOnLeft ? 'assist-conv-left' : 'assist-conv-right'">
+                    <div class="row items-center q-pa-sm">
+                        <div class="col text-subtitle1">Chats</div>
+                        <q-btn id="assist-conv-close" flat round dense icon="close" @click="convDrawer = false"></q-btn>
+                    </div>
+                    <div class="q-px-sm q-pb-sm">
+                        <q-input id="assist-conv-search" dense outlined v-model="convSearch"
+                                 placeholder="Search (3+ letters for the message)" @update:model-value="onConvSearch"></q-input>
+                    </div>
+                    <div class="col overflow-auto">
+                        <div v-if="!conversations.length" class="text-grey-7 q-pa-md">No conversations</div>
+                        <div v-for="row in conversations" :key="row.conversationId"
+                             class="assist-conv-row q-px-sm q-py-xs cursor-pointer"
+                             :class="{ 'assist-conv-open': row.conversationId === conversationId }"
+                             @click="openConversation(row.conversationId)">
+                            <div class="row items-start no-wrap">
+                                <div class="col">
+                                    <div class="text-body2">{{ row.summary || row.title || 'New conversation' }}</div>
+                                    <div class="text-caption text-grey-7">
+                                        Started {{ formatWhen(row.createdDate) }}
+                                        <span v-if="row.lastMessageDate"> · Updated {{ formatWhen(row.lastMessageDate) }}</span>
+                                    </div>
+                                    <div class="text-caption text-grey-7">
+                                        {{ convStatusLabel(row.status) }}
+                                        <span v-if="row.messageCount != null"> · {{ row.messageCount }} messages</span>
+                                        <span v-if="row.hasCanvas"> · Canvas</span>
+                                    </div>
+                                </div>
+                                <q-btn flat round dense icon="delete" color="negative"
+                                       :disable="streaming && row.conversationId === conversationId"
+                                       @click.stop="askDelete(row)"></q-btn>
+                            </div>
+                        </div>
+                    </div>
+                    <div v-if="convPages > 1" class="row justify-center q-pa-sm">
+                        <q-pagination :model-value="convPageIndex + 1" :max="convPages" :max-pages="6" direction-links
+                                      @update:model-value="onConvPage"></q-pagination>
+                    </div>
+                </div>
+            </div>
+            <div ref="canvasPane" class="assist-pane assist-canvas column">
+                <div v-if="schema" class="row items-center q-px-md q-pt-sm q-col-gutter-sm">
+                    <div class="col text-h6">{{ schema.title || 'Generated screen' }}</div>
+                    <div class="col-auto">
+                        <q-btn id="assist-source" dense outline no-caps icon="open_in_new" label="Source"
+                               @click="sourceOpen = true"></q-btn>
+                    </div>
+                    <div class="col-auto">
+                        <q-btn id="assist-back" dense outline no-caps :label="backLabel" @click="leaveCanvas"></q-btn>
+                    </div>
+                </div>
+                <div v-if="schema" class="col overflow-auto assist-canvas-body">
                     <div v-if="schema.instruction" class="text-body2 q-mb-md">{{ schema.instruction }}</div>
                     <div v-if="schema.langError && !showOpenUi && !showFormWidgets" class="text-negative q-mb-md">{{ schema.langError }}</div>
                     <div v-if="(schema.actions||[]).length" class="q-mb-md">
@@ -101,9 +161,13 @@
                                        @error="onOpenUiError" @request-notice="onOpenUiRequestNotice"></assist-openui>
                     </div>
                     <div v-if="showVueSfc" class="q-mb-md">
-                        <component :is="vueSfcComp" :key="vueSfcKey"
+                        <!-- Generated code runs in a sandboxed frame with no access to this page; see AssistSandboxFrame.js -->
+                        <assist-sandbox-frame :key="vueSfcKey" :sfc="vueSfcSource"
                                    :values="fieldValues" :schema="schema" :mode="writeMode"
-                                   @input="onSfcInput" @submit="onSfcSubmit" @cancel="newSession"></component>
+                                   read-base="/llm/v1" profile="assist" :app-root="($root && $root.appRootPath) || ''"
+                                   :version="resourceVersion()"
+                                   @input="onSfcInput" @submit="onSfcSubmit" @cancel="newSession"
+                                   @error="onSfcFrameError"></assist-sandbox-frame>
                     </div>
                     <div v-else-if="schema.kind==='vue-sfc' && !vueSfcFailed" class="text-grey-7 q-mb-md">
                         Loading generated screen…</div>
@@ -121,33 +185,33 @@
                     </div>
                     <div v-if="showFormWidgets" v-for="f in visibleFields" :key="f.name" class="q-mb-sm" :data-field="f.name">
                         <m-text-line v-if="f.widget==='text-line' || f.widget==='hidden'" dense outlined
-                                     :label="f.label || f.name" :value="fieldValues[f.name]"
-                                     @input="onFieldInput(f.name, $event)"
+                                     :label="f.label || f.name" :model-value="fieldValues[f.name]"
+                                     @update:model-value="onFieldInput(f.name, $event)"
                                      :type="f.widget==='hidden' ? 'hidden' : 'text'"
                                      :name="f.name"
                                      :tooltip="f.help"></m-text-line>
                         <q-input v-else-if="f.widget==='text-area'" dense outlined autogrow type="textarea"
-                                 stack-label :label="f.label || f.name" :value="fieldValues[f.name]"
-                                 @input="onFieldInput(f.name, $event)" :hint="f.help" :name="f.name"></q-input>
+                                 stack-label :label="f.label || f.name" :model-value="fieldValues[f.name]"
+                                 @update:model-value="onFieldInput(f.name, $event)" :hint="f.help" :name="f.name"></q-input>
                         <q-select v-else-if="f.widget==='drop-down' && (f.options||[]).length" dense outlined emit-value map-options
                                   :options="f.options || []" option-value="key" option-label="text"
-                                  stack-label :label="f.label || f.name" :value="fieldValues[f.name]"
-                                  @input="onFieldInput(f.name, $event)"></q-select>
+                                  stack-label :label="f.label || f.name" :model-value="fieldValues[f.name]"
+                                  @update:model-value="onFieldInput(f.name, $event)"></q-select>
                         <m-text-line v-else-if="f.widget==='drop-down'" dense outlined
-                                     :label="f.label || f.name" :value="fieldValues[f.name]"
-                                     @input="onFieldInput(f.name, $event)" :name="f.name"
+                                     :label="f.label || f.name" :model-value="fieldValues[f.name]"
+                                     @update:model-value="onFieldInput(f.name, $event)" :name="f.name"
                                      :tooltip="f.help"></m-text-line>
                         <m-date-time v-else-if="f.widget==='date-time'" :name="f.name" :label="f.label || f.name"
-                                     :type="f.widgetType || 'date-time'" :value="fieldValues[f.name]"
-                                     @input="onFieldInput(f.name, $event)"></m-date-time>
+                                     :type="f.widgetType || 'date-time'" :model-value="fieldValues[f.name]"
+                                     @update:model-value="onFieldInput(f.name, $event)"></m-date-time>
                         <q-checkbox v-else-if="f.widget==='check'" :label="f.label || f.name"
-                                    :value="fieldValues[f.name]"
-                                    @input="onFieldInput(f.name, $event)"></q-checkbox>
+                                    :model-value="fieldValues[f.name]"
+                                    @update:model-value="onFieldInput(f.name, $event)"></q-checkbox>
                         <div v-else-if="f.widget==='radio'">
                             <div class="text-caption text-grey-7">{{ f.label || f.name }}</div>
-                            <q-option-group dense type="radio" :value="fieldValues[f.name]"
+                            <q-option-group dense type="radio" :model-value="fieldValues[f.name]"
                                             :options="radioOptions(f)"
-                                            @input="onFieldInput(f.name, $event)"></q-option-group>
+                                            @update:model-value="onFieldInput(f.name, $event)"></q-option-group>
                         </div>
                         <div v-else class="text-body2"><span class="text-grey-7">{{ f.label || f.name }}:</span> {{ fieldValues[f.name] }}</div>
                     </div>
@@ -157,6 +221,13 @@
                             <li v-for="(n, ni) in canvasNotices" :key="'cn'+ni"
                                 :class="n.kind==='error' ? 'text-negative' : ''">{{ n.message }}<span v-if="n.count && n.count > 1"> (×{{ n.count }})</span></li>
                         </ul>
+                    </div>
+                    <div v-if="resultLinks.length" id="assist-result-links" class="q-mb-md">
+                        <div class="text-subtitle2">Result screens</div>
+                        <div class="assist-actions" style="margin-top:8px">
+                            <q-btn v-for="l in resultLinks" :key="l.id + l.href" outline no-caps
+                                   icon="open_in_new" :label="l.label" @click="openResultLink(l.href)"></q-btn>
+                        </div>
                     </div>
                     <div v-if="showParentSubmit" class="assist-actions">
                         <q-btn id="assist-submit" unelevated color="primary" no-caps
@@ -176,6 +247,38 @@
                 </div>
             </div>
     </div>
+    <q-dialog id="assist-settings-dialog" v-model="settingsOpen">
+        <q-card style="min-width:280px; max-width:360px">
+            <q-card-section>
+                <div class="text-h6">Settings</div>
+            </q-card-section>
+            <q-card-section class="q-pt-none">
+                <div>
+                    <q-toggle dense :model-value="writeMode === 'script'" label="Force Script"
+                              @update:model-value="setForceScript" :disable="streaming">
+                        <q-tooltip>On: a generated screen runs its actions when you click. Off: Assist runs them after you click.</q-tooltip>
+                    </q-toggle>
+                </div>
+                <div class="q-mt-sm">
+                    <q-toggle dense v-model="forceSkillUse" label="Force Skill"
+                              @update:model-value="persistForceSkillUse" :disable="streaming">
+                        <q-tooltip>On: Assist picks a skill before it uses other tools.</q-tooltip>
+                    </q-toggle>
+                </div>
+                <div class="q-mt-sm" v-if="profileFlags.apiConfig">
+                    <div class="text-caption text-grey-7 q-mb-xs">Reasoning</div>
+                    <q-btn-toggle id="assist-reasoning" dense no-caps spread unelevated toggle-color="primary"
+                            :model-value="reasoning" :options="reasoningOptions" :disable="streaming"
+                            @update:model-value="setReasoning">
+                        <q-tooltip>How much this chat should think. Low uses less time and cost.</q-tooltip>
+                    </q-btn-toggle>
+                </div>
+            </q-card-section>
+            <q-card-actions align="right">
+                <q-btn flat no-caps label="Close" v-close-popup></q-btn>
+            </q-card-actions>
+        </q-card>
+    </q-dialog>
     <q-dialog id="assist-adjust-dialog" v-model="adjustOpen">
         <q-card style="min-width:360px; max-width:560px; width:92vw">
             <q-card-section>
@@ -200,47 +303,6 @@
             </q-card-actions>
         </q-card>
     </q-dialog>
-    <div v-if="convDrawer" class="assist-conv-backdrop" @click="convDrawer = false"></div>
-    <div v-if="convDrawer" id="assist-conv-drawer" class="assist-conv-drawer column"
-         :class="chatOnLeft ? 'assist-conv-left' : 'assist-conv-right'">
-        <div class="row items-center q-pa-sm">
-            <div class="col text-subtitle1">Chats</div>
-            <q-btn flat round dense icon="close" @click="convDrawer = false"></q-btn>
-        </div>
-        <div class="q-px-sm q-pb-sm">
-            <q-input id="assist-conv-search" dense outlined v-model="convSearch"
-                     placeholder="Search (3+ letters for the message)" @input="onConvSearch"></q-input>
-        </div>
-        <div class="col overflow-auto">
-            <div v-if="!conversations.length" class="text-grey-7 q-pa-md">No conversations</div>
-            <div v-for="row in conversations" :key="row.conversationId"
-                 class="assist-conv-row q-px-sm q-py-xs cursor-pointer"
-                 :class="{ 'assist-conv-open': row.conversationId === conversationId }"
-                 @click="openConversation(row.conversationId)">
-                <div class="row items-start no-wrap">
-                    <div class="col">
-                        <div class="text-body2">{{ row.summary || row.title || 'New conversation' }}</div>
-                        <div class="text-caption text-grey-7">
-                            Started {{ formatWhen(row.createdDate) }}
-                            <span v-if="row.lastMessageDate"> · Updated {{ formatWhen(row.lastMessageDate) }}</span>
-                        </div>
-                        <div class="text-caption text-grey-7">
-                            {{ convStatusLabel(row.status) }}
-                            <span v-if="row.messageCount != null"> · {{ row.messageCount }} messages</span>
-                            <span v-if="row.hasCanvas"> · Canvas</span>
-                        </div>
-                    </div>
-                    <q-btn flat round dense icon="delete" color="negative"
-                           :disable="streaming && row.conversationId === conversationId"
-                           @click.stop="askDelete(row)"></q-btn>
-                </div>
-            </div>
-        </div>
-        <div v-if="convPages > 1" class="row justify-center q-pa-sm">
-            <q-pagination :value="convPageIndex + 1" :max="convPages" :max-pages="6" direction-links
-                          @input="onConvPage"></q-pagination>
-        </div>
-    </div>
     <q-dialog id="assist-source-dialog" v-model="sourceOpen">
         <q-card style="min-width:360px; max-width:720px; width:92vw">
             <q-card-section>
@@ -281,7 +343,7 @@
 </div>
 </template>
 <script>
-/* Assist Universal Screen (qapps2). Canvas kinds: form spec, vue-sfc (moqui.parseSfc).
+/* Assist Universal Screen. Canvas kinds: form spec, openui, vue-sfc (rendered in a sandboxed frame).
  * FUTURE: screen-xml POST to a compile/render transition (server round-trip).
  */
 function parseSseChunk(buffer, onEvent) {
@@ -304,6 +366,8 @@ function parseSseChunk(buffer, onEvent) {
     return rest;
 }
 var CONV_STORAGE_KEY = 'assist.conversationId';
+/** No SSE chunk (the server pings while a turn is running) for this long ends the turn. */
+var IDLE_TIMEOUT_MS = 90000;
 function formatWhen(ms) {
     if (ms == null || ms === '') return '';
     var n = typeof ms === 'number' ? ms : Number(ms);
@@ -364,7 +428,7 @@ function canvasSubmitText(schema) {
     });
     return parts.filter(function(p) { return p; }).join('\n\n');
 }
-var HTML_ACTION_ERROR = 'HTML screens are not valid tool results. Use /apps (not /qapps or /qapps2). GET {screen}/actions for screen JSON, GET {screen}/actions/{formListName} for form-list rows (browse jsonPath), or POST {screen}/{transitionName} for a named transition from browse (not /actions/{transition})';
+var HTML_ACTION_ERROR = 'HTML screens are not valid tool results. Use /apps (not /qapps). GET {screen}/actions for screen JSON, GET {screen}/actions/{formListName} for form-list rows (browse jsonPath), or POST {screen}/{transitionName} for a named transition from browse (not /actions/{transition})';
 var ADJUST_INSTRUCTION = 'The user wants this screen changed or fixed. Do not submit it and do not run its actions. Call write_ui again so the screen matches the feedback. canvas is the screen they are looking at now, including field values they typed. notices are render errors and server messages from canvas requests (validation errors, service errors, warnings); fix those too. A validation error means the value sent was rejected: drop a timestamp the service defaults, or send YYYY-MM-DD HH:mm. For a small OpenUI change, set writeThrough true and send only the changed statements. If the screen failed to render or the structure is wrong, send a full lang program.';
 /** Same rules as AssistOpenUi.js screenResponseProblems. A transition can return HTTP 200 plus screenUrl when the service rejected the input. */
 function screenResponseProblems(parsed) {
@@ -430,6 +494,97 @@ function unescapeHtml(s) {
     if (s == null || s === '') return s;
     return String(s).replace(/&amp;/g, '&').replace(/&lt;/g, '<')
         .replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'");
+}
+function escapeHtml(s) {
+    return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+/** Copy fallback for browsers without navigator.clipboard (any insecure origin). */
+function legacyCopyText(text) {
+    var ta = document.createElement('textarea');
+    ta.value = String(text);
+    ta.setAttribute('readonly', 'readonly');
+    ta.style.position = 'fixed';
+    ta.style.top = '-1000px';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    var ok = false;
+    try { ta.select(); ok = document.execCommand('copy'); } catch (e) { ok = false; }
+    document.body.removeChild(ta);
+    return ok;
+}
+/** Fallback markdown for chat bubbles rendered before AssistOpenUiLibrary.js loads (code
+ *  fences to <pre>, inline code to <code>, bold to <strong>, everything else escaped). The
+ *  real renderer is the assist-markdown component; this never sees a sanitizing pipeline, so
+ *  it must escape before adding any markup. */
+function renderMdMinimal(s) {
+    var text = String(s == null ? '' : s);
+    var parts = text.split(/```/);
+    var out = '';
+    for (var i = 0; i < parts.length; i++) {
+        var chunk = parts[i];
+        if (i % 2 === 1) {
+            var code = chunk.replace(/^[a-zA-Z0-9+-]+\n/, '');
+            out += '<pre>' + escapeHtml(code.replace(/^\n+|\n+$/g, '')) + '</pre>';
+        } else {
+            var esc = escapeHtml(chunk);
+            esc = esc.replace(/`([^`\n]+)`/g, '<code>$1</code>');
+            esc = esc.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+            out += esc;
+        }
+    }
+    return out;
+}
+/** Cached per message: the fallback branch re-renders on every streaming delta. */
+function messageMdHtml(m) {
+    if (!m) return '';
+    if (m._mdFor !== m.content) {
+        m._mdFor = m.content;
+        m._mdHtml = renderMdMinimal(m.content);
+    }
+    return m._mdHtml;
+}
+/** Pretty-printed tool call arguments or tool result content, cached on the message because
+ *  the template renders it twice per pass (the <pre> and the Copy click handler). */
+function toolDetailText(m) {
+    if (!m) return '';
+    var payload = m.kind === 'call' ? m.arguments : m.content;
+    if (payload == null) return '';
+    if (m._detailFor === payload && m._detail != null) return m._detail;
+    var text;
+    if (typeof payload === 'string') {
+        // Tool arguments usually arrive as a JSON string; parse it so redaction applies.
+        var parsed = null;
+        try { parsed = JSON.parse(payload); } catch (e) { parsed = null; }
+        text = parsed == null ? payload : JSON.stringify(redactValues(parsed), null, 2);
+    } else {
+        try { text = JSON.stringify(redactValues(payload), null, 2); }
+        catch (e) { text = String(payload); }
+    }
+    if (text.length > 4000) text = text.slice(0, 4000) + '…';
+    m._detailFor = payload;
+    m._detail = text;
+    return text;
+}
+/** Raw result-screen paths from runScriptActions rows (href built in the component).
+ * Paths go through validateActionPath (same rules as action paths) so a response body can
+ * never turn a result link into an off-origin URL. */
+function extractResultScreens(actionResults) {
+    var out = [];
+    (actionResults || []).forEach(function(row) {
+        if (!row || row.error || row.skipped) return;
+        var body = row.body;
+        if (typeof body === 'string') { try { body = JSON.parse(body); } catch (e) { return; } }
+        if (!body || typeof body !== 'object' || Array.isArray(body)) return;
+        var path = body.screenUrl || body.redirectUrl;
+        if (!path && Array.isArray(body.screenPathList) && body.screenPathList.length)
+            path = body.screenPathList[0];
+        if (!path) return;
+        path = String(path);
+        if (validateActionPath(path)) return;
+        out.push({ id: row.id || 'result', path: path });
+    });
+    return out;
 }
 function scalarValue(v) {
     if (v == null) return '';
@@ -498,10 +653,12 @@ function assistFormatDateValue(value, type) {
     if (ms == null) return text;
     return assistFormatDateMs(ms, kind);
 }
-function subst(str, bag) {
+function subst(str, bag, encode) {
     if (!str || !bag) return str;
     return String(str).replace(/\{([a-zA-Z0-9_.]+)\}/g, function(m, k) {
-        return bag[k] != null ? bag[k] : m;
+        if (bag[k] == null) return m;
+        // Values substituted into a path must not add segments, a query or a host
+        return encode ? encodeURIComponent(String(bag[k])) : bag[k];
     });
 }
 function stripSfcFences(s) {
@@ -605,17 +762,33 @@ function sensitiveArgKey(k) {
     if (!k) return false;
     var l = String(k).toLowerCase();
     if (l === 'token' || l === 'sfc' || l === 'template' || l === 'script' || l === 'style' || l === 'lang') return true;
-    return /password|secret|api[_-]?key|authorization|ssn|creditcard/.test(l);
+    return /password|passwd|secret|token|api[_-]?key|authorization|ssn|creditcard|card[_-]?number|cvv|cvc|iban|account[_-]?number|routing[_-]?number|pin$/.test(l);
 }
 function sensitiveValueKey(k) {
     if (!k) return false;
-    return /password|secret|api[_-]?key|authorization|ssn|creditcard/.test(String(k).toLowerCase());
+    return /password|passwd|secret|token|api[_-]?key|authorization|ssn|creditcard|card[_-]?number|cvv|cvc|iban|account[_-]?number|routing[_-]?number|pin$/.test(String(k).toLowerCase());
 }
 function redactValueMap(src) {
     var out = {};
     if (!src) return out;
     Object.keys(src).forEach(function(k) {
         out[k] = sensitiveValueKey(k) ? '***' : src[k];
+    });
+    return out;
+}
+/** Deep copy with sensitive keys masked, so an expanded tool row cannot print a password or
+ *  apiKey that confirmArgs and the adjust package already hide. */
+function redactValues(v, depth) {
+    if (depth == null) depth = 0;
+    if (v == null || typeof v !== 'object' || depth > 6) return v;
+    if (Array.isArray(v)) {
+        var arr = [];
+        for (var i = 0; i < v.length; i++) arr.push(redactValues(v[i], depth + 1));
+        return arr;
+    }
+    var out = {};
+    Object.keys(v).forEach(function(k) {
+        out[k] = sensitiveValueKey(k) ? '***' : redactValues(v[k], depth + 1);
     });
     return out;
 }
@@ -651,6 +824,13 @@ function formatArgsFallback(name, args) {
     }
     if (name === 'enter_sim') {
         if (args.goal) parts.push('goal=' + args.goal);
+        return parts.join(' ');
+    }
+    if (name === 'screen_use') {
+        if (args.action) parts.push(String(args.action));
+        if (args.path) parts.push(String(args.path));
+        if (args.form) parts.push('form=' + args.form);
+        if (args.until) parts.push('until=' + args.until);
         return parts.join(' ');
     }
     if (name === 'write_ui') {
@@ -700,12 +880,6 @@ function formatResultFallback(name, content) {
     if (content.status != null) return 'status=' + content.status;
     return '';
 }
-
-function assistAppRoot() {
-    if (window.moqui && moqui.webrootVue && moqui.webrootVue.appRootPath != null)
-        return moqui.webrootVue.appRootPath;
-    return '';
-}
 function assistNotify(message, kind) {
     if (!message) return;
     var type = kind === 'error' || kind === 'negative' ? 'danger'
@@ -733,6 +907,7 @@ function formatDoneLine(data) {
     if (data.yielded) parts.push('yielded');
     else if (data.finishReason) parts.push(data.finishReason);
     if (data.durationMs != null && data.durationMs !== '') parts.push(data.durationMs + 'ms');
+    if (data.model) parts.push(String(data.model));
     var u = data.usage;
     if (u && (u.promptTokens != null || u.completionTokens != null || u.totalTokens != null)) {
         parts.push('tokens=' + (u.promptTokens != null ? u.promptTokens : '?') + '/'
@@ -741,50 +916,34 @@ function formatDoneLine(data) {
     }
     return parts.join(' ');
 }
-function ensureSfcProps(comp) {
-    if (!comp) return comp;
-    var base = {
-        values: { type: Object, 'default': function() { return {}; } },
-        schema: { type: Object },
-        mode: { type: String }
-    };
-    if (!comp.props) { comp.props = base; return comp; }
-    if (Array.isArray(comp.props)) {
-        ['values', 'schema', 'mode'].forEach(function(p) {
-            if (comp.props.indexOf(p) < 0) comp.props.push(p);
-        });
-        return comp;
-    }
-    if (!comp.props.values) comp.props.values = base.values;
-    if (!comp.props.schema) comp.props.schema = base.schema;
-    if (!comp.props.mode) comp.props.mode = base.mode;
-    return comp;
-}
-
 module.exports = {
+    props: { shell: { type: Boolean, default: false } },
     data: function() {
         return {
-            chatOnLeft: true, writeMode: 'script', forceSkillUse: false, splitPct: 40,
+            chatOnLeft: true, writeMode: 'script', forceSkillUse: false, reasoning: 'low', splitPct: 40, canvasHidden: false,
             viewportWidth: typeof window !== 'undefined' ? window.innerWidth : 1200,
             mobileTab: 'chat', openGen: 0,
             composer: '', streaming: false,
             conversationId: null, canvasId: null,
-            messages: [], pendingToolCalls: [],
+            messages: [], pendingToolCalls: [], screenWatch: null,
             schema: null, fieldValues: {}, dirtyFields: {},
             adjustOpen: false, adjustText: '', canvasNotices: [],
             autoValidationCount: 0, lastAutoHash: '', maxAutoValidations: 4,
-            vueSfcComp: null, vueSfcKey: null, vueSfcGen: 0, vueSfcFailed: false,
-            speechSupported: false, recognizing: false,
-            recognition: null, abortCtl: null,
-            conversations: [], profileFlags: {},
+            vueSfcSource: null, vueSfcKey: null, vueSfcGen: 0, vueSfcFailed: false,
+            speechSupported: false, recognizing: false, speechBase: '', openUiRuntimeReady: false,
+            recognition: null, abortCtl: null, idleTimer: null,
+            sessionTurns: 0, sessionTokens: 0, lastActionResults: [],
+            conversations: [], profileFlags: {}, profilesLoaded: false,
             convDrawer: false, convSearch: '', convPageIndex: 0, convTotal: 0, convPageSize: 20,
-            convSearchTimer: null, sourceOpen: false, deleteOpen: false, deleteTarget: null
+            convSearchTimer: null, splitSaveTimer: null, settingsOpen: false, sourceOpen: false, deleteOpen: false, deleteTarget: null,
+            reasoningOptions: [{ label: 'Low', value: 'low' }, { label: 'Medium', value: 'medium' }, { label: 'High', value: 'high' }]
         };
     },
     computed: {
         isMobile: function() {
             var narrow = this.viewportWidth <= 600;
-            var phone = window.Quasar && Quasar.Platform && Quasar.Platform.is && Quasar.Platform.is.mobile;
+            var phone = window.Quasar && (Quasar.Platform || Quasar.platform);
+            phone = phone && phone.is && phone.is.mobile;
             return narrow || !!phone;
         },
         /** Phone shows one pane. Desktop flips the splitter so chat and the drawer share a side. */
@@ -804,6 +963,11 @@ module.exports = {
                 var n = Number(v);
                 if (isNaN(n)) return;
                 this.splitPct = (this.chatOnLeft || this.isMobile) ? n : (100 - n);
+                var vm = this;
+                if (this.splitSaveTimer) clearTimeout(this.splitSaveTimer);
+                this.splitSaveTimer = setTimeout(function() {
+                    vm.persistPref('ASSIST_SPLIT_PCT', String(Math.round(vm.splitPct)));
+                }, 800);
             }
         },
         deletePrompt: function() {
@@ -812,28 +976,22 @@ module.exports = {
             var who = row && row.userId ? ' (' + row.userId + ')' : '';
             return 'Delete "' + name + '"' + who + '? The chat and canvas are removed.';
         },
-        writeModeOptions: function() {
-            return [
-                { label: 'Script', value: 'script' },
-                { label: 'Agent', value: 'agent' }
-            ];
-        },
         writeModeHint: function() {
             var acts = (this.schema && this.schema.actions) || [];
             var openui = this.schema && this.schema.kind === 'openui';
             var mode;
             if (this.writeMode === 'script') {
                 mode = (openui || acts.length)
-                    ? 'This screen runs the listed actions when you click.'
-                    : 'A click sends this form to Assist, which runs the write.';
+                    ? 'Mode: form submit runs the listed actions.'
+                    : 'Mode: form submit does what is described with a pre-written script.';
             } else {
-                mode = 'Assist runs the listed actions after you click.';
+                mode = 'Mode: form submit instructs the Assist agent to do what is described.';
             }
             if (!this.forceSkillUse) return mode;
-            return mode + ' Force Skill Use: select a skill or enter sim before other tools.';
+            return mode + ' Force Skill: select a skill or enter sim before other tools.';
         },
         llmBase: function() {
-            var root = assistAppRoot();
+            var root = (this.$root && this.$root.appRootPath) || '';
             return root + '/llm/v1';
         },
         csrf: function() { return (this.$root && this.$root.moquiSessionToken) || ''; },
@@ -869,7 +1027,7 @@ module.exports = {
             return (p && p.id) || (acts[0] && acts[0].id) || 'submit';
         },
         showVueSfc: function() {
-            return !!(this.vueSfcComp && this.schema && this.schema.kind === 'vue-sfc');
+            return !!(this.vueSfcSource && this.schema && this.schema.kind === 'vue-sfc');
         },
         convPages: function() {
             var size = this.convPageSize || 20;
@@ -877,6 +1035,41 @@ module.exports = {
         },
         sourceText: function() { return canvasSourceText(this.schema); },
         submitScriptText: function() { return canvasSubmitText(this.schema); },
+        backLabel: function() {
+            var title = this.$root && this.$root.ScreenTitle;
+            if (!title || title === 'Assist') return 'Back to the application';
+            return 'Back to ' + title;
+        },
+        resultLinks: function() {
+            var raws = extractResultScreens(this.lastActionResults);
+            if (!raws.length) return [];
+            var vm = this;
+            var Nav = window.AssistOpenUiNav;
+            var seen = {};
+            var out = [];
+            for (var i = 0; i < raws.length && out.length < 4; i++) {
+                var r = raws[i];
+                if (seen[r.path]) continue;
+                seen[r.path] = true;
+                // Nav is only there once AssistOpenUiLibrary.js has loaded; paths are already
+                // validated by extractResultScreens so appRoot + path is a safe fallback.
+                var href = null;
+                if (Nav && Nav.build) {
+                    var built = Nav.build(r.path, null, null, {
+                        appRoot: (vm.$root && vm.$root.appRootPath) || '',
+                        getLinkPath: vm.$root && vm.$root.getLinkPath && vm.$root.getLinkPath.bind(vm.$root),
+                        rewriteShell: true
+                    });
+                    if (built && built.href) href = built.href;
+                }
+                if (!href && vm.$root && vm.$root.appRootPath && r.path.indexOf(vm.$root.appRootPath) !== 0)
+                    href = vm.$root.appRootPath + r.path;
+                if (!href) href = r.path;
+                var name = /\/([A-Za-z0-9_-]+)\/?$/.exec(r.path.split(/[?#]/)[0]);
+                out.push({ id: r.id, path: r.path, href: href, label: 'Open ' + (name ? name[1] : (r.id || 'result')) });
+            }
+            return out;
+        },
         showFormWidgets: function() {
             if (!this.schema || this.showVueSfc || this.showOpenUi) return false;
             if (this.schema.kind === 'vue-sfc') return this.vueSfcFailed;
@@ -889,34 +1082,99 @@ module.exports = {
             if (v) return;
             var list = this.messages || [];
             for (var i = 0; i < list.length; i++) if (list[i] && list[i].pending) list[i].pending = false;
-        }
+        },
+        // The shell template does not read isMobile, so a width change never re-renders this
+        // component. The chat node has to be moved into the phone overlay by hand.
+        isMobile: function() { if (this.shell) this.placePanes(); }
     },
     methods: {
         persistPref: function(key, value) {
-            $.ajax({ type: 'POST', url: (assistAppRoot() + '/apps/setPreference'),
+            $.ajax({ type: 'POST', url: (this.$root.appRootPath + '/apps/setPreference'),
                 data: { moquiSessionToken: this.csrf, preferenceKey: key, preferenceValue: value },
                 error: moqui.handleAjaxError });
         },
         persistWriteMode: function() { this.persistPref('ASSIST_WRITE_MODE', this.writeMode); },
+        setForceScript: function(on) {
+            this.writeMode = on ? 'script' : 'agent';
+            this.persistWriteMode();
+        },
         persistForceSkillUse: function() {
             this.persistPref('ASSIST_FORCE_SKILL_USE', this.forceSkillUse ? 'true' : 'false');
+        },
+        setReasoning: function(level) {
+            if (level !== 'low' && level !== 'medium' && level !== 'high') return;
+            if (this.streaming || level === this.reasoning) return;
+            this.reasoning = level;
+            if (!this.conversationId) return;
+            fetch(this.llmBase + '/conversations/' + encodeURIComponent(this.conversationId), {
+                method: 'POST', credentials: 'same-origin', headers: this.headers(false),
+                body: JSON.stringify({ reasoning: level })
+            }).catch(function() { assistNotify('Could not save reasoning level', 'warning'); });
         },
         toggleSide: function() {
             this.chatOnLeft = !this.chatOnLeft;
             this.persistPref('ASSIST_CHAT_SIDE', this.chatOnLeft ? 'left' : 'right');
+            this.placePanes();
         },
-        /** Put the chat in the left slot unless the desktop layout has it on the right. A phone never flips. */
+        syncShell: function() {
+            var root = this.$root;
+            if (!root) return;
+            root.assistSide = this.chatOnLeft ? 'left' : 'right';
+            root.assistNarrow = !!this.isMobile;
+            root.assistCanvasOn = !!(this.shell && this.schema && !this.canvasHidden);
+        },
+        /** Move the chat into the side slot and the canvas into the page slot. */
         placePanes: function() {
-            var before = this.$refs.paneBefore;
-            var after = this.$refs.paneAfter;
+            if (!this.shell) return;
             var chat = this.$refs.chatPane;
             var canvas = this.$refs.canvasPane;
-            if (!before || !after || !chat || !canvas) return;
-            var chatLeft = this.chatOnLeft || this.isMobile;
-            var left = chatLeft ? chat : canvas;
-            var right = chatLeft ? canvas : chat;
-            if (left.parentNode !== before) before.appendChild(left);
-            if (right.parentNode !== after) after.appendChild(right);
+            var holder = this.$refs.paneHolder;
+            if (!chat || !canvas || !holder) return;
+            this.syncShell();
+            var panelId = this.isMobile ? 'assist-panel-slot-narrow'
+                : (this.chatOnLeft ? 'assist-panel-slot' : 'assist-panel-slot-right');
+            var panel = document.getElementById(panelId);
+            if (panel && chat.parentNode !== panel) panel.appendChild(chat);
+            var slot = document.getElementById('assist-canvas-slot');
+            var showCanvas = !!(this.schema && !this.canvasHidden);
+            if (showCanvas && slot) {
+                if (canvas.parentNode !== slot) slot.appendChild(canvas);
+            } else if (canvas.parentNode !== holder) {
+                holder.appendChild(canvas);
+            }
+        },
+        onUserNavigate: function() {
+            if (!this.schema || this.canvasHidden) return;
+            this.canvasHidden = true;
+            this.syncShell();
+            this.placePanes();
+            this.answerLeftCanvas();
+        },
+        leaveCanvas: function() { this.onUserNavigate(); },
+        answerLeftCanvas: function() {
+            var pending = this.pendingToolCalls && this.pendingToolCalls[0];
+            if (!pending || pending.name !== 'write_ui' || !this.conversationId || this.streaming) return;
+            var content = this.writeUiResult(false, null);
+            content.left = true;
+            content.submitted = false;
+            content.userMessage = 'The user left the generated screen and is looking at the application screen. Do not rebuild it unless they ask.';
+            this.messages.push({ role: 'user', content: 'Closed the generated screen.' });
+            var body = Object.assign({ profile: 'assist', tools: this.toolNames(), user: content.userMessage, stream: true,
+                toolResults: [{ id: pending.id, name: 'write_ui', content: content }] }, this.chatFlags());
+            this.runSse(this.llmBase + '/chat/' + encodeURIComponent(this.conversationId) + '/resume', body);
+        },
+        goShell: function(href) {
+            if (!href) return;
+            var root = this.$root;
+            var sameOrigin = href.charAt(0) === '/' || (root && root.appRootPath && href.indexOf(root.appRootPath) === 0);
+            if (sameOrigin && root && root.setUrl) {
+                this.canvasHidden = true;
+                root.assistCanvasOn = false;
+                root.setUrl(href);
+                this.answerLeftCanvas();
+                return;
+            }
+            window.open(href, '_blank', 'noopener,noreferrer');
         },
         newSession: function() {
             this.openGen = (this.openGen || 0) + 1;
@@ -925,7 +1183,7 @@ module.exports = {
         },
         loadPrefs: function() {
             var vm = this;
-            $.ajax({ type: 'GET', url: (assistAppRoot() + '/apps/getPreferences'),
+            $.ajax({ type: 'GET', url: (this.$root.appRootPath + '/apps/getPreferences'),
                 data: { keyRegexp: 'ASSIST_' }, dataType: 'json',
                 success: function(prefs) {
                     if (!prefs) return;
@@ -934,6 +1192,14 @@ module.exports = {
                         vm.writeMode = prefs.ASSIST_WRITE_MODE;
                     if (prefs.ASSIST_FORCE_SKILL_USE === 'true') vm.forceSkillUse = true;
                     if (prefs.ASSIST_FORCE_SKILL_USE === 'false') vm.forceSkillUse = false;
+                    var pct = Number(prefs.ASSIST_SPLIT_PCT);
+                    if (!isNaN(pct) && pct >= 15 && pct <= 85) vm.splitPct = pct;
+                    var px = Number(prefs.ASSIST_DRAWER_PX);
+                    if (!isNaN(px) && px >= 320 && px <= 1600 && vm.$root) vm.$root.assistPanelPx = px;
+                    // No UI writes this one; set the ASSIST_MAX_AUTO_VALIDATIONS preference (or the
+                    // profile) to change the cap on client-side validation retries.
+                    var mav = Number(prefs.ASSIST_MAX_AUTO_VALIDATIONS);
+                    if (!isNaN(mav) && mav >= 0 && mav <= 10) vm.maxAutoValidations = mav;
                 } });
         },
         loadProfiles: function() {
@@ -942,10 +1208,13 @@ module.exports = {
                 .then(function(r) { return r.json(); })
                 .then(function(body) {
                     var list = (body && body.profiles) || [];
-                    var assist = list.filter(function(p) { return p.name === 'assist'; })[0] || list[0];
+                    var assist = list.filter(function(p) { return p.name === 'assist'; })[0];
                     vm.profileFlags = assist || {};
-                    if (assist && assist.allowUnprefixedRequest === false && assist.allowBrowse === false)
-                        assistNotify('Assist profile tools are limited; browse/request may be unavailable.', 'warning');
+                    vm.profilesLoaded = true;
+                    if (assist && assist.allowUnprefixedRequest === false && assist.allowBrowse === false) {
+                        var msg = 'Assist profile tools are limited; browse/request may be unavailable.';
+                        vm.noteCanvas(msg, 'warning');
+                    }
                 }).catch(function() { /* ignore */ });
         },
         loadConversations: function(pageIndex) {
@@ -1013,18 +1282,26 @@ module.exports = {
             try { sessionStorage.setItem(CONV_STORAGE_KEY, body.conversationId); } catch (e) { /* ignore */ }
             this.messages = historyToMessages(body.history);
             this.pendingToolCalls = body.pendingToolCalls || [];
+            this.warnMultiPending();
             this.schema = null;
             this.fieldValues = {};
             this.dirtyFields = {};
             this.canvasNotices = [];
+            this.lastActionResults = [];
+            this.sessionTurns = (body.history || []).filter(function(m) {
+                return m && m.role === 'user';
+            }).length;
+            this.sessionTokens = 0;
             this.adjustOpen = false;
             this.adjustText = '';
             this.autoValidationCount = 0;
             this.lastAutoHash = '';
-            this.vueSfcComp = null;
+            this.vueSfcSource = null;
             this.vueSfcKey = null;
             this.vueSfcFailed = false;
             this.vueSfcGen = (this.vueSfcGen || 0) + 1;
+            var level = body.attributes && body.attributes.reasoning;
+            this.reasoning = (level === 'low' || level === 'medium' || level === 'high') ? level : 'low';
             var canvas = body.canvas;
             if (!canvas) {
                 var pending = this.pendingToolCalls[0];
@@ -1033,6 +1310,9 @@ module.exports = {
                 if (isWriteUiArgs(args)) canvas = args;
             }
             if (canvas) this.applyYield(canvas);
+            var pendingUse = this.pendingToolCalls && this.pendingToolCalls[0];
+            if (pendingUse && pendingUse.name === 'screen_use')
+                this.applyScreenUse(pendingUse, this.parseToolArgs(pendingUse));
             this.convDrawer = false;
         },
         askDelete: function(row) {
@@ -1063,9 +1343,75 @@ module.exports = {
         },
         copyText: function(text) {
             if (!text) return;
+            var ok = function() { assistNotify('Copied to clipboard', 'success'); };
+            var failed = function() { assistNotify('Could not copy — select the text and copy manually', 'warning'); };
             if (navigator.clipboard && navigator.clipboard.writeText) {
-                navigator.clipboard.writeText(text).catch(function() { /* ignore */ });
+                navigator.clipboard.writeText(text).then(ok, function() {
+                    if (legacyCopyText(text)) ok(); else failed();
+                });
+                return;
             }
+            // navigator.clipboard is undefined on an insecure origin, not just failing.
+            if (legacyCopyText(text)) ok(); else failed();
+        },
+        toggleTool: function(m) {
+            if (!m) return;
+            m._open = !m._open;
+        },
+        toolDetail: function(m) { return toolDetailText(m); },
+        renderMd: function(m) { return messageMdHtml(m); },
+        openResultLink: function(href) { this.goShell(href); },
+        /** Error entries stay in the thread; notify alone is lost once a bubble has partial content. */
+        noteError: function(message) {
+            if (!message) return;
+            var text = String(message);
+            assistNotify(text, 'warning');
+            var list = this.messages || [];
+            var entry = 'Error: ' + text;
+            for (var i = list.length - 1; i >= 0; i--) {
+                var m = list[i];
+                if (m && m.role === 'done' && m.error && m.content === entry) return;
+            }
+            this.messages.push({ role: 'done', content: entry, error: true });
+        },
+        touchSse: function() { this.clearIdle(); this.armIdle(); },
+        clearIdle: function() {
+            if (this.idleTimer) { clearTimeout(this.idleTimer); this.idleTimer = null; }
+        },
+        armIdle: function() {
+            var vm = this;
+            this.clearIdle();
+            this.idleTimer = setTimeout(function() {
+                if (!vm.streaming) return;
+                try { if (vm.abortCtl) vm.abortCtl.abort(); } catch (e) { /* ignore */ }
+                vm.streaming = false;
+                vm.clearIdle();
+                // Aborting the fetch does not stop the server turn; it has to be cancelled.
+                vm.cancelServerTurn();
+                vm.noteError('No response for ' + (IDLE_TIMEOUT_MS / 1000)
+                    + 's — the turn was cancelled. Try again.');
+            }, IDLE_TIMEOUT_MS);
+        },
+        recordDoneStats: function(data) {
+            this.sessionTurns = (this.sessionTurns || 0) + 1;
+            var u = data && data.usage;
+            var total = u && u.totalTokens != null ? Number(u.totalTokens) : NaN;
+            if (isNaN(total) && u)
+                total = (Number(u.promptTokens) || 0) + (Number(u.completionTokens) || 0);
+            if (!isNaN(total) && total > 0) this.sessionTokens = (this.sessionTokens || 0) + total;
+        },
+        /* Only pendingToolCalls[0] can be answered from this screen (finishSubmit, confirmTool,
+         * resumeChat, submitAdjust all send a single toolResult), so extra calls need a
+         * follow-up turn. Leave a trace in the thread, not just a toast. */
+        warnMultiPending: function() {
+            var calls = this.pendingToolCalls || [];
+            if (calls.length <= 1) return;
+            var msg = calls.length + ' pending tool calls; answering the first — the rest need a server follow-up.';
+            var list = this.messages || [];
+            var last = list[list.length - 1];
+            if (last && last.role === 'done' && last.content === msg) return;
+            assistNotify(msg, 'warning');
+            list.push({ role: 'done', content: msg });
         },
         formatWhen: function(ms) { return formatWhen(ms); },
         convStatusLabel: function(status) { return convStatusLabel(status); },
@@ -1077,15 +1423,31 @@ module.exports = {
             if (this.pendingToolCalls.length) this.resumeChat(text);
             else this.chat(text);
         },
-        toolNames: function() { return ['find_skill', 'enter_sim', 'browse', 'find_basic', 'request', 'write_ui', 'run_service', 'pin']; },
+        toolNames: function() {
+            var names = ['find_skill', 'enter_sim', 'browse', 'find_basic', 'request', 'screen_use', 'write_ui', 'run_service', 'pin'];
+            // The server only registers tools the profile allows (LlmGateway.applyTools), so this
+            // is defence in depth: do not offer a tool that can never arrive. Before /profiles
+            // answers, assume everything is allowed so a slow load cannot silently drop tools.
+            if (!this.profilesLoaded) return names;
+            var flags = this.profileFlags || {};
+            var blocked = [];
+            if (flags.allowBrowse === false) blocked.push('browse');
+            if (flags.allowRunService === false) blocked.push('run_service');
+            if (flags.allowEnterSim === false) blocked.push('enter_sim');
+            if (!blocked.length) return names;
+            return names.filter(function(n) { return blocked.indexOf(n) < 0; });
+        },
         headers: function(stream) {
             var h = { 'Content-Type': 'application/json', 'X-CSRF-Token': this.csrf, Accept: stream ? 'text/event-stream' : 'application/json' };
             return h;
         },
         chatFlags: function() {
+            var level = this.reasoning;
+            if (level !== 'medium' && level !== 'high') level = 'low';
             return {
                 forceSkillUse: !!this.forceSkillUse,
-                writeMode: this.writeMode === 'agent' ? 'agent' : 'script'
+                writeMode: this.writeMode === 'agent' ? 'agent' : 'script',
+                reasoning: level
             };
         },
         chat: function(text) {
@@ -1097,12 +1459,431 @@ module.exports = {
         resumeChat: function(text) {
             var pending = this.pendingToolCalls[0];
             if (!pending) { this.chat(text); return; }
-            var content = this.writeUiResult(false, null);
-            content.userMessage = text;
+            var name = pending.name || 'write_ui';
+            var content;
+            if (name === 'screen_use') {
+                this.screenWatch = null;
+                content = { cancelled: true, reason: 'user_message' };
+            } else {
+                content = this.writeUiResult(false, null);
+                content.userMessage = text;
+            }
             var body = Object.assign({ profile: 'assist', tools: this.toolNames(), user: text, stream: true,
-                toolResults: [{ id: pending.id, name: pending.name || 'write_ui', content: content }] },
+                toolResults: [{ id: pending.id, name: name, content: content }] },
                 this.chatFlags());
             this.runSse(this.llmBase + '/chat/' + encodeURIComponent(this.conversationId) + '/resume', body);
+        },
+        screenWatchLabel: function() {
+            var until = this.screenWatch && this.screenWatch.until;
+            if (until === 'submit') return 'submit a form';
+            if (until === 'navigate') return 'go to another screen';
+            return 'submit a form or go to another screen';
+        },
+        screenTitle: function() {
+            var root = this.$root || {};
+            var menu = root.navMenuList || [];
+            var last = menu.length ? menu[menu.length - 1] : null;
+            var title = (last && last.title) || root.ScreenTitle || '';
+            if (title === 'Assist') return '';
+            return title;
+        },
+        screenContext: function() {
+            var root = this.$root || {};
+            var selected = [];
+            var forms = (window.moqui && moqui.screenForms) || [];
+            for (var i = 0; i < forms.length; i++) {
+                var form = forms[i];
+                if (!form || typeof form.getCheckboxValueArray !== 'function') continue;
+                var vals = form.getCheckboxValueArray() || [];
+                for (var v = 0; v < vals.length && selected.length < 50; v++) selected.push(vals[v]);
+            }
+            return {
+                path: root.currentPath || '',
+                title: this.screenTitle(),
+                parameters: redactValueMap(root.currentParameters || {}),
+                selected: selected
+            };
+        },
+        resumeScreenUse: function(pending, content) {
+            if (!pending || !this.conversationId || this.streaming) return;
+            this.screenWatch = null;
+            var body = Object.assign({ profile: 'assist', tools: this.toolNames(), stream: true,
+                toolResults: [{ id: pending.id, name: 'screen_use', content: content }] }, this.chatFlags());
+            this.runSse(this.llmBase + '/chat/' + encodeURIComponent(this.conversationId) + '/resume', body);
+        },
+        cancelScreenWatch: function() {
+            var pending = this.pendingToolCalls && this.pendingToolCalls[0];
+            this.screenWatch = null;
+            if (!pending || pending.name !== 'screen_use') return;
+            this.resumeScreenUse(pending, { cancelled: true, reason: 'cancel' });
+        },
+        onScreenEvent: function(ev) {
+            if (!this.screenWatch || !ev) return;
+            if (this.$root && this.$root.assistNavSilent) return;
+            var until = this.screenWatch.until || 'either';
+            if (until === 'submit' && ev.event !== 'submit') return;
+            if (until === 'navigate' && ev.event !== 'navigate') return;
+            var pending = this.pendingToolCalls && this.pendingToolCalls[0];
+            if (!pending || pending.name !== 'screen_use' || this.streaming || !this.conversationId) return;
+            this.screenWatch = null;
+            var path = ev.screenUrl || ev.path || (this.$root && this.$root.currentPath) || '';
+            this.resumeScreenUse(pending, {
+                event: ev.event,
+                path: path,
+                title: this.screenTitle(),
+                form: ev.form || null,
+                action: ev.action || null,
+                method: ev.method || null,
+                navigationOnly: !!ev.navigationOnly,
+                fields: this.clipFieldMap(ev.fields),
+                messageInfos: this.clipMessages(ev.messageInfos),
+                errors: ev.errors || null,
+                validationErrors: ev.validationErrors || null
+            });
+        },
+        clipFieldMap: function(src) {
+            var out = {};
+            var redacted = redactValueMap(src);
+            var keys = Object.keys(redacted);
+            for (var i = 0; i < keys.length && i < 40; i++) {
+                var v = redacted[keys[i]];
+                if (v != null && typeof v === 'object') continue;
+                if (typeof v === 'string' && v.length > 300) v = v.slice(0, 300);
+                out[keys[i]] = v;
+            }
+            return out;
+        },
+        clipMessages: function(list) {
+            if (!list || !list.length) return null;
+            var out = [];
+            for (var i = 0; i < list.length && i < 8; i++) {
+                var row = list[i];
+                if (!row) continue;
+                var text = row.message || row;
+                out.push(typeof text === 'string' && text.length > 300 ? text.slice(0, 300) : text);
+            }
+            return out;
+        },
+        parseToolArgs: function(call) {
+            var args = call && call.arguments;
+            if (typeof args === 'string') { try { args = JSON.parse(args); } catch (e) { args = null; } }
+            return args && typeof args === 'object' ? args : {};
+        },
+        applyScreenUse: function(call, args) {
+            args = args || {};
+            var action = args.action;
+            var vm = this;
+            if (action === 'watch') {
+                var until = args.until === 'submit' || args.until === 'navigate' ? args.until : 'either';
+                this.screenWatch = { until: until };
+                return;
+            }
+            var work;
+            if (action === 'navigate') work = this.screenNavigate(args);
+            else if (action === 'snapshot') work = Promise.resolve(this.screenSnapshot(args));
+            else if (action === 'fill') work = Promise.resolve(this.screenFill(args));
+            else if (action === 'set_selection') work = Promise.resolve(this.screenSetSelection(args));
+            else if (action === 'submit_find') work = this.screenSubmitFind(args);
+            else if (action === 'click_nav') work = this.screenClickNav(args);
+            else work = Promise.resolve({ error: 'bad_action', action: action || null });
+            Promise.resolve(work).then(function(content) {
+                vm.resumeScreenUse(call, content || { error: 'empty' });
+            }).catch(function(err) {
+                vm.resumeScreenUse(call, { error: 'client', message: (err && err.message) || String(err) });
+            });
+        },
+        screenUseUrl: function(path, parameters) {
+            var q = [];
+            var params = parameters || {};
+            Object.keys(params).forEach(function(k) {
+                var v = params[k];
+                if (v == null || v === '') return;
+                if (Array.isArray(v)) {
+                    for (var i = 0; i < v.length; i++)
+                        q.push(encodeURIComponent(k) + '=' + encodeURIComponent(v[i]));
+                } else q.push(encodeURIComponent(k) + '=' + encodeURIComponent(String(v)));
+            });
+            var base = path || '';
+            if (!q.length) return base;
+            return base + (base.indexOf('?') >= 0 ? '&' : '?') + q.join('&');
+        },
+        waitScreenSettled: function(root, done) {
+            var start = Date.now();
+            var saw = root.loading > 0;
+            function tick() {
+                if (root.loading > 0) saw = true;
+                var elapsed = Date.now() - start;
+                if (saw && root.loading === 0) { setTimeout(done, 50); return; }
+                if (!saw && elapsed > 700) { done(); return; }
+                if (elapsed > 8000) { done(); return; }
+                setTimeout(tick, 40);
+            }
+            setTimeout(tick, 20);
+        },
+        screenNavigate: function(args) {
+            var vm = this;
+            var root = this.$root;
+            if (!root || typeof root.setUrl !== 'function')
+                return Promise.resolve({ error: 'no_shell', path: args && args.path });
+            var url = this.screenUseUrl(args.path, args.parameters);
+            this.canvasHidden = true;
+            root.assistCanvasOn = false;
+            return new Promise(function(resolve) {
+                var prevSilent = root.assistNavSilent;
+                var finished = false;
+                function finish() {
+                    if (finished) return;
+                    finished = true;
+                    root.assistNavSilent = prevSilent;
+                    vm.$nextTick(function() {
+                        var applied = vm.applyScreenFields(args.fields);
+                        resolve({
+                            path: root.currentPath,
+                            title: vm.screenTitle(),
+                            filled: applied.filled,
+                            missing: applied.missing,
+                            ignored: args.ignored || []
+                        });
+                    });
+                }
+                root.assistNavSilent = true;
+                var timer = setTimeout(finish, 8000);
+                root.setUrl(url, null, function() {
+                    vm.waitScreenSettled(root, function() {
+                        clearTimeout(timer);
+                        finish();
+                    });
+                });
+            });
+        },
+        screenFormId: function(vm) {
+            if (!vm) return '';
+            var attrs = vm.$attrs || {};
+            return attrs.id || attrs.name || vm.id || vm.name || (vm.$el && vm.$el.id) || '';
+        },
+        screenForms: function() {
+            return (window.moqui && moqui.screenForms) ? moqui.screenForms.slice() : [];
+        },
+        matchScreenForm: function(wanted) {
+            if (!wanted) return null;
+            var forms = this.screenForms();
+            for (var i = 0; i < forms.length; i++) {
+                var id = this.screenFormId(forms[i]);
+                if (id === wanted || forms[i].name === wanted) return forms[i];
+            }
+            return null;
+        },
+        applyScreenFields: function(fields) {
+            var filled = [];
+            var missing = [];
+            if (!fields || typeof fields !== 'object') return { filled: filled, missing: missing };
+            var forms = this.screenForms();
+            Object.keys(fields).forEach(function(name) {
+                var hit = false;
+                for (var i = 0; i < forms.length; i++) {
+                    var form = forms[i];
+                    if (!form || !form.fields) continue;
+                    var known = Object.prototype.hasOwnProperty.call(form.fields, name)
+                        || (form.fieldsInitial && Object.prototype.hasOwnProperty.call(form.fieldsInitial, name));
+                    if (!known) continue;
+                    if (typeof form.$set === 'function') form.$set(form.fields, name, fields[name]);
+                    else form.fields[name] = fields[name];
+                    hit = true;
+                }
+                if (hit) filled.push(name); else missing.push(name);
+            });
+            return { filled: filled, missing: missing };
+        },
+        screenSnapshot: function(args) {
+            var root = this.$root || {};
+            var wanted = args && args.form;
+            var forms = [];
+            var list = this.screenForms();
+            for (var i = 0; i < list.length; i++) {
+                var vm = list[i];
+                if (!vm || !vm.$options) continue;
+                var comp = vm.$options.name;
+                if (comp !== 'mForm' && comp !== 'mFormLink' && comp !== 'mFormList') continue;
+                var id = this.screenFormId(vm);
+                if (wanted && id !== wanted && vm.name !== wanted) continue;
+                var kind = comp === 'mFormLink' ? 'm-form-link' : (comp === 'mFormList' ? 'm-form-list' : 'm-form');
+                var row = {
+                    id: id,
+                    kind: kind,
+                    action: vm.action || null,
+                    method: vm.method || (comp === 'mFormLink' ? 'GET' : 'POST'),
+                    navigationOnly: !!(window.moqui && moqui.screenSubmitAllowed && moqui.screenSubmitAllowed(vm))
+                };
+                if (vm.fields) row.fields = redactValueMap(vm.fields);
+                if (typeof vm.getCheckboxValueArray === 'function') {
+                    var sel = vm.getCheckboxValueArray() || [];
+                    if (sel.length) row.selected = sel.slice(0, 50);
+                }
+                forms.push(row);
+                if (wanted) break;
+            }
+            var out = {
+                path: root.currentPath || '',
+                title: this.screenTitle(),
+                parameters: redactValueMap(root.currentParameters || {}),
+                forms: forms,
+                dialogs: this.screenDialogs()
+            };
+            if (!wanted) {
+                var text = '';
+                try { text = JSON.stringify(out); } catch (e) { text = ''; }
+                if (text.length > 6000) {
+                    out.forms = forms.map(function(f) {
+                        return { id: f.id, kind: f.kind, navigationOnly: f.navigationOnly,
+                            fieldCount: f.fields ? Object.keys(f.fields).length : 0 };
+                    });
+                    out.truncated = true;
+                    out.instruction = 'Pass form to snapshot one form in full.';
+                }
+            }
+            return out;
+        },
+        screenFill: function(args) {
+            var applied = this.applyScreenFields(args && args.fields);
+            applied.form = (args && args.form) || null;
+            return applied;
+        },
+        screenSetSelection: function(args) {
+            var wanted = args && args.form;
+            var values = (args && args.values) || [];
+            var want = {};
+            for (var i = 0; i < values.length; i++) want[String(values[i])] = true;
+            var matched = false;
+            var forms = this.screenForms();
+            for (var f = 0; f < forms.length; f++) {
+                var vm = forms[f];
+                if (wanted && this.screenFormId(vm) !== wanted && vm.name !== wanted) continue;
+                if (!vm.checkboxValues || !vm.checkboxStates) continue;
+                matched = true;
+                var n = Math.min(vm.checkboxValues.length, vm.checkboxStates.length);
+                for (var c = 0; c < n; c++) {
+                    var on = !!want[String(vm.checkboxValues[c])];
+                    if (typeof vm.$set === 'function') vm.$set(vm.checkboxStates, c, on);
+                    else vm.checkboxStates[c] = on;
+                }
+            }
+            return { form: wanted || null, selected: Object.keys(want), matched: matched };
+        },
+        screenSubmitForm: function(form) {
+            var vm = this;
+            var root = this.$root;
+            if (!form || typeof form.submitGo !== 'function' || !root)
+                return Promise.resolve({ refused: true, reason: 'not_navigation' });
+            if (!(window.moqui && moqui.screenSubmitAllowed && moqui.screenSubmitAllowed(form)))
+                return Promise.resolve({ refused: true, reason: 'posts' });
+            return new Promise(function(resolve) {
+                var prev = root.assistNavSilent;
+                var finished = false;
+                function finish() {
+                    if (finished) return;
+                    finished = true;
+                    root.assistNavSilent = prev;
+                    resolve({
+                        submitted: true,
+                        navigationOnly: true,
+                        path: root.currentPath,
+                        title: vm.screenTitle()
+                    });
+                }
+                root.assistNavSilent = true;
+                var timer = setTimeout(finish, 8000);
+                form.submitGo();
+                vm.waitScreenSettled(root, function() {
+                    clearTimeout(timer);
+                    finish();
+                });
+            });
+        },
+        screenSubmitFind: function(args) {
+            var form = this.matchScreenForm(args && args.form);
+            if (!form) {
+                var nav = this.screenForms().filter(function(vm) {
+                    return window.moqui && moqui.screenSubmitAllowed && moqui.screenSubmitAllowed(vm);
+                });
+                if (nav.length === 1) form = nav[0];
+                else return Promise.resolve({ refused: true, reason: nav.length ? 'form_required' : 'not_navigation',
+                    forms: nav.map(function(vm) { return vm && (vm.name || (vm.$attrs && vm.$attrs.id)) || ''; }) });
+            }
+            var self = this;
+            return this.screenSubmitForm(form).then(function(result) {
+                if (result && result.refused) return result;
+                var snap = self.screenSnapshot({ form: args && args.form });
+                result.snapshot = snap;
+                return result;
+            });
+        },
+        screenDialogs: function() {
+            var out = [];
+            function walk(vm) {
+                if (!vm || out.length >= 20) return;
+                if (vm.$options && vm.$options.name === 'mContainerDialog') {
+                    out.push({ id: vm.id || '', title: vm.title || '', button: vm.buttonText || '', open: !!vm.isShown });
+                }
+                var kids = vm.$children || [];
+                for (var i = 0; i < kids.length; i++) walk(kids[i]);
+            }
+            walk(this.$root);
+            return out;
+        },
+        openScreenDialog: function(id) {
+            var found = null;
+            function walk(vm) {
+                if (!vm || found) return;
+                if (vm.$options && vm.$options.name === 'mContainerDialog' && vm.id === id) { found = vm; return; }
+                var kids = vm.$children || [];
+                for (var i = 0; i < kids.length; i++) walk(kids[i]);
+            }
+            walk(this.$root);
+            if (!found || typeof found.show !== 'function') return false;
+            found.show();
+            return true;
+        },
+        screenClickNav: function(args) {
+            var vm = this;
+            var el = args && args.id ? document.getElementById(args.id) : null;
+            if (args && args.id && !el) {
+                if (this.openScreenDialog(args.id)) {
+                    return new Promise(function(resolve) {
+                        vm.$nextTick(function() {
+                            setTimeout(function() {
+                                var snap = vm.screenSnapshot(null);
+                                snap.opened = args.id;
+                                resolve(snap);
+                            }, 200);
+                        });
+                    });
+                }
+                return Promise.resolve({ refused: true, reason: 'not_found', id: args.id });
+            }
+            if (el) {
+                var owner = window.moqui && moqui.formForElement ? moqui.formForElement(el) : null;
+                var type = (el.getAttribute && el.getAttribute('type') || '').toLowerCase();
+                var submitEl = type === 'submit' || (el.closest && el.closest('button[type="submit"], input[type="submit"]'));
+                if (submitEl) {
+                    if (!owner || !(window.moqui && moqui.screenSubmitAllowed && moqui.screenSubmitAllowed(owner)))
+                        return Promise.resolve({ refused: true, reason: 'posts', id: args.id });
+                    return this.screenSubmitForm(owner);
+                }
+            }
+            if (args && args.path) return this.screenNavigate(args);
+            if (!el) return Promise.resolve({ refused: true, reason: 'nothing_to_click' });
+            var root = this.$root;
+            return new Promise(function(resolve) {
+                var prev = root ? root.assistNavSilent : false;
+                if (root) root.assistNavSilent = true;
+                el.click();
+                vm.waitScreenSettled(root || { loading: 0 }, function() {
+                    if (root) root.assistNavSilent = prev;
+                    var snap = vm.screenSnapshot(null);
+                    snap.clicked = args.id;
+                    resolve(snap);
+                });
+            });
         },
         writeUiResult: function(submitted, button) {
             return {
@@ -1198,6 +1979,7 @@ module.exports = {
         },
         applySchema: function(schema) {
             if (!schema) return;
+            this.canvasHidden = false;
             this.canvasNotices = [];
             var prevDirty = Object.assign({}, this.dirtyFields);
             var prevVals = Object.assign({}, this.fieldValues);
@@ -1239,50 +2021,54 @@ module.exports = {
             this.applySchema(args);
             if (args.kind === 'openui') {
                 this.vueSfcGen = (this.vueSfcGen || 0) + 1;
-                this.vueSfcComp = null;
+                this.vueSfcSource = null;
                 this.vueSfcKey = null;
                 this.vueSfcFailed = false;
                 this.loadOpenUi();
             } else if (args.kind === 'vue-sfc') this.loadVueSfc(args);
             else {
                 this.vueSfcGen = (this.vueSfcGen || 0) + 1;
-                this.vueSfcComp = null;
+                this.vueSfcSource = null;
                 this.vueSfcKey = null;
                 this.vueSfcFailed = false;
             }
         },
-        ensureOpenUiHost: function() {
-            var app = window.moqui && moqui.qapps2App;
-            var comps = app && app._context && app._context.components;
-            if (!app || typeof app.component !== 'function' || (comps && comps['assist-openui'])) return;
-            // The compiled template resolves assist-openui on every render, including the first one.
-            app.component('assist-openui', {
-                name: 'assist-openui',
-                template: '<div class="assist-openui text-grey-7 q-pa-sm">Loading OpenUI…</div>'
-            });
-        },
         loadOpenUi: function() {
-            if (window.OpenUILang && window.AssistOpenUiReady) return Promise.resolve();
-            this.ensureOpenUiHost();
-            var root = assistAppRoot();
+            return this.ensureOpenUiRuntime(true);
+        },
+        /** Load AssistOpenUiLibrary.js, which registers the shared markdown component; the canvas
+         *  path additionally needs lang-core and AssistOpenUi.js. */
+        ensureOpenUiRuntime: function(withCanvasRuntime) {
+            var vm = this;
+            var root = (this.$root && this.$root.appRootPath) || '';
             var ver = pageResourceVersion();
             var q = ver ? ('?v=' + ver) : '';
-            var files = [
-                root + '/qapps2static/js/dash/DashShared.js' + q,
-                root + '/qapps2static/js/assist/lang-core.umd.min.js' + q,
-                root + '/qapps2static/js/assist/AssistOpenUiLibrary.js' + q,
-                root + '/qapps2static/js/assist/AssistOpenUi.js' + q
-            ];
+            if (withCanvasRuntime && window.OpenUILang && window.AssistOpenUiReady) return Promise.resolve();
+            var files = [root + '/qapps2static/js/assist/AssistOpenUiLibrary.js' + q];
+            if (withCanvasRuntime) files.unshift(root + '/qapps2static/js/assist/lang-core.umd.min.js' + q);
+            if (withCanvasRuntime) files.push(root + '/qapps2static/js/assist/AssistOpenUi.js' + q);
             var chain = Promise.resolve();
             files.forEach(function(src) {
                 chain = chain.then(function() { return loadScriptOnce(src); });
             });
-            var vm = this;
             return chain.then(function() {
-                if (window.AssistOpenUiReady) vm.$forceUpdate();
-            }).catch(function(err) {
+                if (window.registerAssistMarkdownComponent) window.registerAssistMarkdownComponent();
+                vm.openUiRuntimeReady = true;
+            }, function(err) {
+                if (!withCanvasRuntime) return;
                 vm.noteCanvas((err && err.message) || String(err), 'error');
             });
+        },
+        /** Chat bubbles only need markdown; load the library on mount so the first reply renders
+         *  with links, highlighting, and sanitizing instead of the plain-text fallback. */
+        ensureMarkdownRuntime: function() {
+            if (this.openUiRuntimeReady) return;
+            if (window.AssistOpenUiLibrary) {
+                if (window.registerAssistMarkdownComponent) window.registerAssistMarkdownComponent();
+                this.openUiRuntimeReady = true;
+                return;
+            }
+            this.ensureOpenUiRuntime(false);
         },
         onOpenUiState: function(snap) {
             if (!snap || typeof snap !== 'object') return;
@@ -1420,14 +2206,14 @@ module.exports = {
                 var url = ev.params && ev.params.url;
                 var Nav = window.AssistOpenUiNav;
                 var built = Nav && Nav.build ? Nav.build(url, null, null, {
-                    appRoot: assistAppRoot(),
+                    appRoot: (this.$root && this.$root.appRootPath) || '',
                     getLinkPath: this.$root && this.$root.getLinkPath && this.$root.getLinkPath.bind(this.$root),
                     rewriteShell: true
                 }) : null;
-                if (built && built.href) window.open(built.href, '_blank', 'noopener,noreferrer');
+                if (built && built.href) this.goShell(built.href);
                 else if (!built && url && url.charAt(0) === '/' && url.indexOf('://') < 0 && url.indexOf('//') !== 0
                         && url.indexOf('..') < 0)
-                    window.open((assistAppRoot()) + url, '_blank', 'noopener,noreferrer');
+                    this.goShell(((this.$root && this.$root.appRootPath) || '') + url);
                 return;
             }
             if (type === 'submit' || type === 'continue_conversation') {
@@ -1447,41 +2233,53 @@ module.exports = {
         },
         loadVueSfc: function(schema) {
             var vm = this;
+            // Generated code is only ever run in the sandboxed frame. Still honor the profile flag here, because a canvas
+            // restored from a saved conversation reaches this method without passing the server check.
+            if (this.profilesLoaded && !(this.profileFlags && this.profileFlags.allowVueSfc)) {
+                this.vueSfcGen = (this.vueSfcGen || 0) + 1;
+                if (!this.vueSfcSource) this.vueSfcFailed = true;
+                vm.noteCanvas('Generated Vue screens are disabled for this profile', 'error');
+                return;
+            }
             var text = assembleSfc(schema);
             if (!text || text.toLowerCase().indexOf('<template') < 0) {
                 this.vueSfcGen = (this.vueSfcGen || 0) + 1;
-                if (!this.vueSfcComp) this.vueSfcFailed = true;
+                if (!this.vueSfcSource) this.vueSfcFailed = true;
                 if (schema && schema.sfcError) vm.noteCanvas(schema.sfcError, 'error');
                 return;
             }
             var key = hashString(text);
-            if (key === this.vueSfcKey && this.vueSfcComp) { this.vueSfcFailed = false; return; }
-            if (!window.moqui || typeof moqui.parseSfc !== 'function') {
-                vm.noteCanvas('Generated screen failed to compile: vue3-sfc-loader is not available', 'error');
-                if (!this.vueSfcComp) this.vueSfcFailed = true;
-                return;
-            }
+            if (key === this.vueSfcKey && this.vueSfcSource) { this.vueSfcFailed = false; return; }
             this.vueSfcFailed = false;
             this.vueSfcGen = (this.vueSfcGen || 0) + 1;
             var gen = this.vueSfcGen;
-            moqui.parseSfc(text, 'assist-generated-' + key + '.vue').then(function(mod) {
+            // The frame component is loaded on first use. Compile errors come back from the frame as an error event.
+            this.ensureSandboxFrame().then(function() {
                 if (gen !== vm.vueSfcGen) return;
-                var comp = mod && (mod.default || mod);
-                if (!comp || (!comp.template && !comp.render)) {
-                    vm.noteCanvas('Generated screen failed to compile: missing template', 'error');
-                    if (!vm.vueSfcComp) vm.vueSfcFailed = true;
-                    return;
-                }
-                if (window.Vue && Vue.markRaw) comp = Vue.markRaw(ensureSfcProps(comp));
-                else comp = ensureSfcProps(comp);
-                vm.vueSfcComp = comp;
+                vm.vueSfcSource = text;
                 vm.vueSfcKey = key;
                 vm.vueSfcFailed = false;
-            }).catch(function(err) {
+            }, function(err) {
                 if (gen !== vm.vueSfcGen) return;
-                vm.noteCanvas('Generated screen failed to compile: ' + ((err && err.message) || String(err)), 'error');
-                if (!vm.vueSfcComp) vm.vueSfcFailed = true;
+                vm.noteCanvas('Generated screen could not start: ' + ((err && err.message) || String(err)), 'error');
+                if (!vm.vueSfcSource) vm.vueSfcFailed = true;
             });
+        },
+        ensureSandboxFrame: function() {
+            if (window.Vue && window.Vue.options.components['assist-sandbox-frame']) return Promise.resolve();
+            var root = (this.$root && this.$root.appRootPath) || '';
+            var ver = pageResourceVersion();
+            return loadScriptOnce(root + '/qapps2static/js/assist/AssistSandboxFrame.js' + (ver ? ('?v=' + ver) : ''));
+        },
+        resourceVersion: function() { return pageResourceVersion(); },
+        onSfcFrameError: function(e) {
+            var message = (e && e.message) || 'The generated screen failed';
+            this.noteCanvas(message, 'error');
+            // A screen that never compiled falls back to the plain form fields. A runtime error leaves it showing.
+            if (e && e.phase === 'compile') {
+                this.vueSfcSource = null;
+                this.vueSfcFailed = true;
+            }
         },
         onSfcInput: function(payload) {
             if (payload == null || typeof payload !== 'object' || Array.isArray(payload)) return;
@@ -1514,21 +2312,26 @@ module.exports = {
             });
         },
         onFieldInput: function(name, value) {
-            this.$set(this.fieldValues, name, value);
-            this.$set(this.dirtyFields, name, true);
+            this.fieldValues[name] = value;
+            this.dirtyFields[name] = true;
         },
         submitCanvas: function(buttonId) {
             if (this.streaming) return;
             var vm = this;
+            // Result links describe the run that is about to happen, so clear them here and keep
+            // them across the write_ui yield that follows (applyYield must not reset them).
+            this.lastActionResults = [];
             var acts = (this.schema && this.schema.actions) || [];
             var runActions = this.writeMode === 'script' && acts.length;
             assistNotify(runActions ? 'Running listed actions…' : 'Submitted — Assist is working…', 'info');
             if (runActions) {
                 this.runScriptActions().then(function(actionResults) {
+                    vm.lastActionResults = actionResults || [];
                     assistNotify('Actions finished; Assist is reviewing results…', 'info');
                     vm.finishSubmit(buttonId, actionResults);
                 }).catch(function(err) {
                     var msg = (err && err.message) || String(err);
+                    vm.lastActionResults = (err && err.actionResults) || [];
                     if (vm.recordCanvasNotice(msg, 'error')) assistNotify(msg, 'error');
                     vm.finishSubmit(buttonId, err.actionResults || []);
                 });
@@ -1612,7 +2415,7 @@ module.exports = {
                         return next(i + 1);
                     }
                 }
-                var path = subst(act.path, bag);
+                var path = subst(act.path, bag, true);
                 var pathErr = validateActionPath(path);
                 if (pathErr) {
                     failed[act.id] = true;
@@ -1689,10 +2492,12 @@ module.exports = {
         },
         runSse: function(url, body) {
             var vm = this;
+            if (body && typeof body === 'object') body.screen = this.screenContext();
             // A turn replaces an in-flight open, same as New.
             this.openGen = (this.openGen || 0) + 1;
             this.streaming = true;
             this.abortCtl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+            this.armIdle();
             var assistant = { role: 'assistant', content: '', pending: true, connected: false };
             this.messages.push(assistant);
             fetch(url, {
@@ -1716,9 +2521,11 @@ module.exports = {
                     return reader.read().then(function(chunk) {
                         if (chunk.done) {
                             vm.streaming = false;
+                            vm.clearIdle();
                             vm.loadConversations(vm.convPageIndex || 0);
                             return;
                         }
+                        vm.touchSse();
                         buf += decoder.decode(chunk.value, { stream: true });
                         buf = parseSseChunk(buf, function(event, data) { vm.onSse(event, data, assistant); });
                         return pump();
@@ -1727,13 +2534,15 @@ module.exports = {
                 return pump();
             }).catch(function(err) {
                 vm.streaming = false;
+                vm.clearIdle();
                 if (err && err.name === 'AbortError') return;
                 var msg = (err && err.message) || String(err);
-                assistNotify(msg, 'warning');
-                assistant.content = assistant.content || msg;
+                if (assistant.content) vm.noteError(msg);
+                else assistant.content = msg;
             });
         },
         onSse: function(event, data, assistant) {
+            this.touchSse();
             if (event === 'conversation' && data && data.conversationId) {
                 var first = !this.conversationId;
                 this.conversationId = data.conversationId;
@@ -1753,35 +2562,46 @@ module.exports = {
                     content: data && data.content, summary: data && data.summary });
             } else if (event === 'yield') {
                 this.pendingToolCalls = (data && data.pendingToolCalls) || [];
+                this.warnMultiPending();
                 var call = this.pendingToolCalls[0];
-                var args = call && call.arguments;
-                if (typeof args === 'string') { try { args = JSON.parse(args); } catch (e) { args = null; } }
-                if (isWriteUiArgs(args)) this.applyYield(args);
+                var args = this.parseToolArgs(call);
+                if (call && call.name === 'screen_use') this.applyScreenUse(call, args);
+                else if (isWriteUiArgs(args)) this.applyYield(args);
                 // FUTURE: args.kind === 'screen-xml' → POST to a compile/render transition (server round-trip)
                 this.streaming = false;
+                this.clearIdle();
                 this.loadConversations(this.convPageIndex || 0);
             } else if (event === 'done') {
                 this.streaming = false;
+                this.clearIdle();
                 if (data && !data.yielded) this.pendingToolCalls = [];
+                this.recordDoneStats(data);
                 var doneLine = formatDoneLine(data);
                 if (doneLine) this.messages.push({ role: 'done', content: doneLine });
                 this.loadConversations(this.convPageIndex || 0);
             } else if (event === 'error') {
                 this.streaming = false;
-                assistNotify((data && data.message) || 'LLM error', 'warning');
+                this.clearIdle();
+                this.noteError((data && data.message) || 'LLM error');
             }
         },
         handleJsonTurn: function(j, assistant) {
             this.streaming = false;
-            if (j.conversationId) this.conversationId = j.conversationId;
+            this.clearIdle();
+            if (j.conversationId) {
+                this.conversationId = j.conversationId;
+                try { sessionStorage.setItem(CONV_STORAGE_KEY, j.conversationId); } catch (e) { /* ignore */ }
+            }
             if (j.content) assistant.content = j.content;
             if (j.yielded && j.pendingToolCalls) {
                 this.pendingToolCalls = j.pendingToolCalls;
+                this.warnMultiPending();
                 var call = this.pendingToolCalls[0];
-                var args = call && call.arguments;
-                if (typeof args === 'string') { try { args = JSON.parse(args); } catch (e) { args = null; } }
-                if (isWriteUiArgs(args)) this.applyYield(args);
+                var args = this.parseToolArgs(call);
+                if (call && call.name === 'screen_use') this.applyScreenUse(call, args);
+                else if (isWriteUiArgs(args)) this.applyYield(args);
             }
+            this.recordDoneStats(j);
             var doneLine = formatDoneLine(j);
             if (doneLine) this.messages.push({ role: 'done', content: doneLine });
             this.loadConversations(this.convPageIndex || 0);
@@ -1791,7 +2611,8 @@ module.exports = {
             var first = this.messages.filter(function(m) { return m.role === 'user'; })[0];
             if (!first || !first.content) return;
             var title = first.content.length > 80 ? first.content.slice(0, 77) + '...' : first.content;
-            $.ajax({ type: 'POST', url: 'setTitle', dataType: 'json',
+            var root = (this.$root && this.$root.appRootPath) || '';
+            $.ajax({ type: 'POST', url: root + '/apps/setAssistTitle', dataType: 'json',
                 data: { moquiSessionToken: this.csrf, conversationId: this.conversationId, title: title } });
         },
         clearLocalSession: function() {
@@ -1800,25 +2621,38 @@ module.exports = {
             this.canvasId = 'c' + Date.now();
             this.messages = [];
             this.pendingToolCalls = [];
+            this.screenWatch = null;
             this.schema = null;
             this.fieldValues = {};
             this.dirtyFields = {};
             this.canvasNotices = [];
+            this.lastActionResults = [];
+            this.sessionTurns = 0;
+            this.sessionTokens = 0;
             this.adjustOpen = false;
             this.adjustText = '';
             this.autoValidationCount = 0;
             this.lastAutoHash = '';
-            this.vueSfcComp = null;
+            this.vueSfcSource = null;
             this.vueSfcKey = null;
             this.vueSfcFailed = false;
             this.vueSfcGen = (this.vueSfcGen || 0) + 1;
+            this.reasoning = 'low';
+            this.clearIdle();
         },
         cancelTurn: function() {
             var inFlight = this.streaming;
             if (inFlight && this.abortCtl) try { this.abortCtl.abort(); } catch (e) { /* ignore */ }
             if (!inFlight) this.abortCtl = null;
             this.streaming = false;
-            if (!inFlight || !this.conversationId) return;
+            this.clearIdle();
+            if (inFlight) this.messages.push({ role: 'done', content: 'Cancelled' });
+            if (!inFlight) return;
+            this.cancelServerTurn();
+        },
+        /** Tell the server to stop the turn; aborting the browser fetch alone does not. */
+        cancelServerTurn: function() {
+            if (!this.conversationId) return;
             fetch(this.llmBase + '/chat/' + encodeURIComponent(this.conversationId) + '/cancel', {
                 method: 'POST', credentials: 'same-origin',
                 headers: this.headers(false), body: '{}'
@@ -1829,20 +2663,43 @@ module.exports = {
             this.speechSupported = !!Rec;
             if (!Rec) return;
             var rec = new Rec();
-            rec.lang = (navigator.language || 'en-US');
-            rec.interimResults = false;
             var vm = this;
+            rec.lang = (navigator.language || 'en-US');
+            rec.interimResults = true;
+            rec.continuous = true;
+            /* Interim results keep changing, so build the box from what was there when the mic
+             * started plus finals plus the current interim. Appending each interim would repeat
+             * the growing prefix ("hello" then "hello wor" -> "hello hello wor"). */
             rec.onresult = function(ev) {
-                var t = ev.results && ev.results[0] && ev.results[0][0] && ev.results[0][0].transcript;
-                if (t) vm.composer = (vm.composer ? vm.composer + ' ' : '') + t;
+                var finals = [], interim = '';
+                for (var i = ev.resultIndex; i < ev.results.length; i++) {
+                    var r = ev.results[i];
+                    var text = r && r[0] && r[0].transcript;
+                    if (!text) continue;
+                    if (r.isFinal) finals.push(text);
+                    else interim += text;
+                }
+                vm.composer = [vm.speechBase, finals.join(' '), interim]
+                    .filter(function(s) { return s; }).join(' ').trim();
             };
-            rec.onend = function() { vm.recognizing = false; };
+            rec.onerror = function(ev) {
+                vm.recognizing = false;
+                if (ev && ev.error === 'not-allowed')
+                    assistNotify('Microphone permission denied', 'warning');
+            };
+            rec.onend = function() { vm.recognizing = false; vm.speechBase = ''; };
             this.recognition = rec;
         },
         toggleMic: function() {
-            if (!this.recognition) return;
-            if (this.recognizing) { this.recognition.stop(); this.recognizing = false; }
-            else { this.recognition.start(); this.recognizing = true; }
+            if (!this.recognition || this.streaming) return;
+            if (this.recognizing) {
+                this.recognition.stop();
+                this.recognizing = false;
+                this.speechBase = '';
+            } else {
+                this.speechBase = this.composer || '';
+                try { this.recognition.start(); this.recognizing = true; } catch (e) { this.recognizing = false; }
+            }
         },
         widgetComponent: function(widget) {
             if (widget === 'text-area') return 'q-input';
@@ -1859,11 +2716,9 @@ module.exports = {
             return '';
         }
     },
-    created: function() {
-        this.ensureOpenUiHost();
-        this.loadOpenUi();
-    },
     mounted: function() {
+        if (!this.shell) return;
+        window.moquiAssistVm = this;
         this.canvasId = 'c' + Date.now();
         this.loadPrefs();
         this.loadProfiles();
@@ -1872,21 +2727,34 @@ module.exports = {
         try { saved = sessionStorage.getItem(CONV_STORAGE_KEY); } catch (e) { /* ignore */ }
         if (saved) this.openConversation(saved);
         this.setupSpeech();
+        this.ensureMarkdownRuntime();
         var vm = this;
         this.onViewport = function() { vm.viewportWidth = window.innerWidth; };
         window.addEventListener('resize', this.onViewport);
         this.placePanes();
     },
     updated: function() { this.placePanes(); },
-    beforeDestroy: function() {
+    beforeUnmount: function() {
+        if (window.moquiAssistVm === this) window.moquiAssistVm = null;
+        if (!this.shell) return;
         if (this.onViewport) window.removeEventListener('resize', this.onViewport);
         this.cancelTurn();
+        if (this.splitSaveTimer) { clearTimeout(this.splitSaveTimer); this.splitSaveTimer = null; }
         if (this.recognition && this.recognizing) try { this.recognition.stop(); } catch (e) { /* ignore */ }
     }
 };
 </script>
 <style>
-.assist-root { min-height: 60vh; position: relative; }
+.assist-root { min-height: 0; height: 100%; position: relative; }
+.assist-chat { position: relative; }
+/* Two placeholder lines, centered in the box by equal padding above and below. */
+.assist-composer.q-textarea .q-field__control { min-height: 68px; align-items: center; }
+.assist-composer.q-textarea .q-field__native {
+    line-height: 20px;
+    padding-top: 14px;
+    padding-bottom: 14px;
+    min-height: 68px;
+}
 .assist-conv-backdrop { position: absolute; inset: 0; z-index: 15; background: rgba(0,0,0,0.12); }
 .assist-conv-drawer {
     position: absolute; top: 0; bottom: 0; width: 320px; max-width: 92%; z-index: 16;
@@ -1894,6 +2762,7 @@ module.exports = {
 }
 .assist-conv-left { left: 0; }
 .assist-conv-right { right: 0; }
+.assist-chat .assist-conv-drawer { left: 0; right: 0; width: auto; max-width: none; }
 .assist-pane-host { height: 100%; min-height: 0; }
 .assist-pane-holder { display: none; }
 .assist-split-flip .assist-chat { border-right: none; border-left: 1px solid rgba(0,0,0,0.08); }
@@ -1908,6 +2777,23 @@ module.exports = {
 .assist-source-pre {
     margin: 0; max-height: 40vh; overflow: auto; white-space: pre-wrap; word-break: break-word;
     background: #f5f5f5; padding: 8px; border-radius: 4px; font-size: 12px;
+}
+.assist-tool-row:hover { background: rgba(0,0,0,0.04); }
+/* .assist-md holds the shared assist-markdown renderer output; .assist-md-fallback is the
+   plain escape-then-tag renderer used until the library script has loaded. */
+.assist-md { word-break: break-word; }
+.assist-md-fallback { white-space: pre-wrap; word-break: break-word; }
+.assist-md pre, .assist-md-fallback pre, .assist-md-fallback > pre {
+    margin: 4px 0; max-height: 40vh; overflow: auto; white-space: pre; word-break: break-word;
+    background: #f5f5f5; padding: 8px; border-radius: 4px; font-size: 12px;
+}
+.assist-md code, .assist-md-fallback code, .assist-md pre code, .assist-md-fallback pre code {
+    background: #f5f5f5; padding: 0 4px; border-radius: 3px; font-size: 0.92em;
+}
+.assist-md pre code, .assist-md-fallback pre code { padding: 0; background: transparent; }
+.assist-md table, .assist-md-fallback table { border-collapse: collapse; margin: 4px 0; }
+.assist-md th, .assist-md td, .assist-md-fallback th, .assist-md-fallback td {
+    border: 1px solid rgba(0,0,0,0.15); padding: 2px 6px;
 }
 .assist-pane { height: 100%; overflow: hidden; }
 .assist-chat { border-right: 1px solid rgba(0,0,0,0.08); }

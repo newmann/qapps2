@@ -113,9 +113,9 @@ lists `qjs2`, `qjs`, or `js`.
 
 ## Boundaries
 
-- Do not edit `runtime/base-component/webroot/**`, the qapps `.qvt` macros, `MoquiDefaultConf.xml`, or tools Assist sources.
+- Do not edit `runtime/base-component/webroot/**`, the qapps `.qvt` macros, or `MoquiDefaultConf.xml`.
 - QZ printing is not migrated in this round.
-- Assist is rendered with the `.qvt2` macros; its source is unchanged.
+- Assist is a shell panel, not a screen. The static SFC is `screen/qapps2static/js/assist/Assist.qvue` (Vue 3). The header button loads it when the user has `LlmGateway`.
 
 ## Related
 

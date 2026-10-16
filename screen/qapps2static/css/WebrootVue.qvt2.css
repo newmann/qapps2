@@ -76,7 +76,28 @@ pre { text-wrap: normal; white-space: pre-line; word-wrap: normal; word-break: n
 .qapps2-crumbs { display: flex; align-items: center; min-width: 0; overflow: hidden; }
 .qapps2-crumbs .qapps2-crumb { white-space: nowrap; max-width: 12em; overflow: hidden; text-overflow: ellipsis; }
 .qapps2-page-wrap { background: var(--qapps2-bg); }
-.qapps2-page-wrap > .q-page { padding: 12px 16px; }
+.qapps2-screen { padding: 12px 16px; }
+/* Header toolbar is 52px, footer min-height 28px plus vertical padding. The row sits in
+   q-page-container, which Quasar already insets by those heights. */
+.assist-shell-row { display:flex; align-items:stretch; height:calc(100vh - 52px - 36px); min-height:0; overflow:hidden; }
+.app-menu-col { flex:0 0 280px; width:280px; min-height:0; overflow:auto; }
+.app-menu-overlay { position:fixed; z-index:2000; top:52px; bottom:0; left:0; box-shadow:0 0 16px rgba(0,0,0,0.2); }
+.assist-page-col { flex:1 1 auto; min-width:0; min-height:0; overflow:auto; background:var(--qapps2-bg); }
+.assist-page-col.q-page { min-height:0 !important; }
+.assist-panel-wrap { display:flex; flex:0 0 auto; min-width:0; max-width:50vw; min-height:0; background:var(--qapps2-surface); }
+.assist-panel-slot { flex:1 1 auto; min-width:0; min-height:0; display:flex; flex-direction:column; overflow:hidden; }
+.assist-panel-slot > .assist-chat { flex:1 1 auto; min-height:0; height:auto; }
+.assist-panel-grip { flex:0 0 6px; cursor:col-resize; background:var(--qapps2-border, rgba(0,0,0,0.08)); }
+.assist-panel-grip:hover { background:var(--q-primary); }
+.assist-canvas-slot { min-height:calc(100vh - 52px - 36px - 8px); display:flex; flex-direction:column; }
+.assist-canvas-slot > .assist-canvas { flex:1 1 auto; min-height:0; height:auto; }
+.assist-narrow-overlay {
+    position:fixed; z-index:3000; top:52px; bottom:0; width:min(420px, 100vw);
+    display:flex; flex-direction:column; background:var(--qapps2-surface, #fff); box-shadow:0 0 24px rgba(0,0,0,0.25);
+}
+.assist-narrow-left { left:0; }
+.assist-narrow-right { right:0; }
+.assist-narrow-overlay > .assist-chat { flex:1 1 auto; min-height:0; height:auto; }
 .qapps2-drawer {
     background: var(--qapps2-surface-alt) !important;
     border-right: 1px solid var(--qapps2-border);

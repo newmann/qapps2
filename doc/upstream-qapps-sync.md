@@ -13,8 +13,7 @@ qapps or merge the in-place `vue3quasar2` branch. Port by feature.
 | `webroot/.../qapps.xml` | `screen/qapps2.xml` |
 | `webroot/.../js/MoquiLib.js` | `screen/qapps2static/js/MoquiLib.js` |
 | `runtime/template/.../DefaultScreenMacros.qvt.ftl` | `template/screen-macro/DefaultScreenMacros.qvt2.ftl` |
-| `webroot/.../js/assist/**` | `screen/qapps2static/js/assist/**` (Vue3 port) |
-| `tools/screen/Assist.xml` / `Assist.qvue` | `screen/Assist.xml` + `Assist.qvue` overlay |
+| `webroot/.../js/assist/**` | `screen/qapps2static/js/assist/**` (Vue 3 shell SFC) |
 
 ## Triage labels
 
@@ -23,8 +22,7 @@ For each upstream commit touching the watch paths, pick one:
 - **port** — hand-adapt into the qapps2 file with Vue 3 / Quasar 2 idioms
 - **already** — qapps2 already has the fix or an equivalent
 - **N/A** — Vue2-only, qapps theme-only, or intentionally diverged
-- **Assist-queue** — tools Assist / OpenUI; update the qapps2 copies under
-  `js/assist/` and `screen/Assist.qvue`, not tools sources
+- **Assist-queue** — shell Assist / OpenUI; update `screen/qapps2static/js/assist/`, not webroot sources
 
 ## Do not copy naively
 
@@ -41,18 +39,13 @@ ECharts migration is approved.
 
 ## Assist layout
 
-- `/apps/assist` is shared. [Assist.xml](../screen/Assist.xml) serves
-  `qvue` → tools (Vue2) and `qvue2` → qapps2 `Assist.qvue` (Vue3).
-- OpenUI scripts: `/qapps` uses `webroot/.../js/assist/`; `/qapps2` uses
-  `qapps2static/js/assist/` (injected from `qapps2.xml` or loaded by
-  `Assist.qvue`).
-- Authz: tools `ASSIST_APP` covers `component://tools/screen/Assist.xml`;
-  qapps2 adds the overlay location in [`AppSeedData.xml`](../data/AppSeedData.xml).
-  Render still requires `LlmGateway` (ADMIN seed in framework `LlmTypeData.xml`).
+- Assist is not an `/apps` subscreen. qapps and qapps2 each mount a static SFC from the shell header when the user has `LlmGateway`.
+- qapps2 SFC: `screen/qapps2static/js/assist/Assist.qvue`. OpenUI and the sandbox parent load from `qapps2static/js/assist/`. The generated-screen iframe still uses webroot Vue 2 and `/js/assist/AssistSandboxRuntime.js`.
+- Title updates POST `/apps/setAssistTitle`. There is no `ASSIST_APP` screen authz for qapps2.
 
 ## Verify after a sync
 
 1. `/qapps/` and `/apps/` still work (Vue2 shell unchanged).
 2. `/qapps2/` and `/qapps2/tools/Service/ServiceRun`.
-3. If Assist changed: `/qapps/assist` (Vue2) and `/qapps2/assist` (Vue3).
+3. If Assist changed: header button on `/qapps/` and `/qapps2/` (user needs `LlmGateway`).
 4. After vendor URL changes: `./gradlew :runtime:component:qapps2:build`.

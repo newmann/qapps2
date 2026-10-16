@@ -112,9 +112,9 @@ runtime/component/qapps2/
 
 ## 约定与边界
 
-- 不改 `runtime/base-component/webroot/**`、qapps 的 `.qvt` 宏、`MoquiDefaultConf.xml`、tools Assist 源文件。
+- 不改 `runtime/base-component/webroot/**`、qapps 的 `.qvt` 宏、`MoquiDefaultConf.xml`。
 - 本轮不迁 QZ 打印。
-- Assist 用 `.qvt2` 宏渲染，不改其源。
+- Assist 是壳层侧栏，不是屏幕。静态 SFC 在 `screen/qapps2static/js/assist/Assist.qvue`（Vue 3）。有 `LlmGateway` 权限时顶栏按钮加载它。
 
 ## 相关文档
 
